@@ -1,7 +1,9 @@
 [user]
 	name = Stephen Day
 	email = stephen.day@docker.com
-	signingkey = EFDB9C251ADF2139
+
+[include]
+	path = signingkey.inc
 
 [core]
 	excludesfile = ~/.config/git/ignore

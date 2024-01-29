@@ -33,3 +33,10 @@ unlink-runcom: stow
 	stow --delete -t $(HOME) runcom
 	for FILE in $$(\ls -A runcom); do if [ -f $(HOME)/$$FILE.bak ]; then \
 		mv -v $(HOME)/$$FILE.bak $(HOME)/$${FILE%%.bak}; fi; done
+
+gpg-generatekey:
+	gpg --full-generate-key
+
+config/git/signingkey.inc:
+	git config --file $(DOTFILES)/config/git/signingkey.inc user.signingkey \
+		$$(gpg --list-secret-keys --keyid-format LONG --with-colons | awk -F: '/^sec:/ { print $$5 }' | head -n1)
