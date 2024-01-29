@@ -3,10 +3,10 @@ DEFAULT_SHELL := $(shell dscl . -read ~/ UserShell | sed 's/UserShell: //') # on
 export STOW_DIR = $(DOTFILES)
 export XDG_CONFIG_HOME = $(HOME)/.config
 
+all: submodules brew link gpg-setup git-setup zsh-setup rust-setup
 
-all: brew link gpg-setup git-setup
-	echo "in progress"
-	echo ${DOTFILES_DIR}
+submodules:
+	git submodule update --init --recursive # ensure that .zprezto is fully pulled
 
 brew:
 	which brew || ( \
@@ -20,20 +20,20 @@ brew-packages: brew
 stow: brew
 	which stow || brew install stow
 
-link: link-runcom link-config
+link: link-runcoms link-config
 
-link-runcom: stow runcom/.*
-	for FILE in $$(\ls -A runcom); do if [ -f $(HOME)/$$FILE -a ! -h $(HOME)/$$FILE ]; then \
+link-runcoms: stow runcoms/.*
+	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE -a ! -h $(HOME)/$$FILE ]; then \
 		mv -v $(HOME)/$$FILE{,.bak}; fi; done
-	stow -t $(HOME) runcom
+	stow -t $(HOME) runcoms
 
 link-config: stow config/*
 	mkdir -p $(XDG_CONFIG_HOME)
 	stow -t $(XDG_CONFIG_HOME) config
 
-unlink-runcom: stow
-	stow --delete -t $(HOME) runcom
-	for FILE in $$(\ls -A runcom); do if [ -f $(HOME)/$$FILE.bak ]; then \
+unlink-runcoms: stow
+	stow --delete -t $(HOME) runcoms
+	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE.bak ]; then \
 		mv -v $(HOME)/$$FILE.bak $(HOME)/$${FILE%%.bak}; fi; done
 
 gpg-setup: brew-packages .gpg-key-generated
@@ -49,8 +49,7 @@ config/git/signingkey.inc: .gpg-key-generated
 	git config --file $(DOTFILES)/config/git/signingkey.inc user.signingkey \
 		$$(gpg --list-secret-keys --keyid-format LONG --with-colons | awk -F: '/^sec:/ { print $$5 }' | head -n1)
 
-zsh-setup:
-	git submodule update --init --recursive # ensure that .zprezto is fully pulled
+zsh-setup: submodules
 # This ifneq is just broken for some reason
  # echo "Default Shell: $(DEFAULT_SHELL)"
 #ifneq ($(DEFAULT_SHELL),/bin/zsh)
@@ -58,3 +57,10 @@ zsh-setup:
 # else
 # echo "Shell already defaults to zsh"
 # endif
+
+rust-setup:
+	if which rustup; then \
+		rustup update; \
+	else \
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh; \
+	fi
