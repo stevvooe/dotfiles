@@ -34,9 +34,13 @@ unlink-runcom: stow
 	for FILE in $$(\ls -A runcom); do if [ -f $(HOME)/$$FILE.bak ]; then \
 		mv -v $(HOME)/$$FILE.bak $(HOME)/$${FILE%%.bak}; fi; done
 
-gpg-generatekey:
-	gpg --full-generate-key
+gpg-setup: brew-packages .gpg-key-generated
+	echo "pinentry-program $(which pinentry-mac)" >> ~/.gnupg/gpg-agent.conf # don't manage this with dotfiles
 
-config/git/signingkey.inc:
+.gpg-key-generated:
+	gpg --full-generate-key
+	touch .gpg-key-generated # do this once per machine
+
+config/git/signingkey.inc: .gpg-key-generated
 	git config --file $(DOTFILES)/config/git/signingkey.inc user.signingkey \
 		$$(gpg --list-secret-keys --keyid-format LONG --with-colons | awk -F: '/^sec:/ { print $$5 }' | head -n1)
