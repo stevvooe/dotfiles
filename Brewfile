@@ -1,4 +1,4 @@
 brew "jq"
 brew "stow"
-brew "gpg"
+brew "gpg2"
 brew "pinentry-mac"
