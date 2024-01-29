@@ -1,8 +1,10 @@
 DOTFILES := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+DEFAULT_SHELL := $(shell dscl . -read ~/ UserShell | sed 's/UserShell: //') # only works on mac
 export STOW_DIR = $(DOTFILES)
 export XDG_CONFIG_HOME = $(HOME)/.config
 
-all:
+
+all: brew link gpg-setup git-setup
 	echo "in progress"
 	echo ${DOTFILES_DIR}
 
@@ -20,7 +22,7 @@ stow: brew
 
 link: link-runcom link-config
 
-link-runcom: stow runcom/*
+link-runcom: stow runcom/.*
 	for FILE in $$(\ls -A runcom); do if [ -f $(HOME)/$$FILE -a ! -h $(HOME)/$$FILE ]; then \
 		mv -v $(HOME)/$$FILE{,.bak}; fi; done
 	stow -t $(HOME) runcom
@@ -41,6 +43,18 @@ gpg-setup: brew-packages .gpg-key-generated
 	gpg --full-generate-key
 	touch .gpg-key-generated # do this once per machine
 
+git-setup: brew-packages config/git/signingkey.inc
+
 config/git/signingkey.inc: .gpg-key-generated
 	git config --file $(DOTFILES)/config/git/signingkey.inc user.signingkey \
 		$$(gpg --list-secret-keys --keyid-format LONG --with-colons | awk -F: '/^sec:/ { print $$5 }' | head -n1)
+
+zsh-setup:
+	git submodule update --init --recursive # ensure that .zprezto is fully pulled
+# This ifneq is just broken for some reason
+ # echo "Default Shell: $(DEFAULT_SHELL)"
+#ifneq ($(DEFAULT_SHELL),/bin/zsh)
+	#chsh -s /bin/zsh
+# else
+# echo "Shell already defaults to zsh"
+# endif

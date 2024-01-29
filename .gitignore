@@ -1,3 +1,4 @@
 config/git/signingkey.inc
 Brewfile.lock.json
 .gpg-key-generated
+config/zsh/.zsh_history
