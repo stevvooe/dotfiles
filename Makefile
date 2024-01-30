@@ -20,7 +20,10 @@ brew-packages: brew
 stow: brew
 	which stow || brew install stow
 
-link: link-runcoms link-config
+link: link-runcoms link-config link-bin
+
+link-bin: stow bin/*
+	stow -t $(HOME)/bin bin
 
 link-runcoms: stow runcoms/.*
 	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE -a ! -h $(HOME)/$$FILE ]; then \

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -eu
+
+emsg() {
+	echo "$*" 1>&2
+}
+
+CODEHOME=${CODEHOME:-~/code}
+
+usage() {
+	cat 1>&1 << EOF
+Usage: $0 <repo>
+
+Provides consistent cloning to a configured location.
+
+Set CODEHOME (default: $CODEHOME) to control the location.
+
+Options:
+  -h, --help   display a helpful message.
+
+EOF
+}
+
+ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -h|--help)
+      usage
+      exit 1
+      ;;
+    -*|--*)
+      usage
+      emsg "error: unknown option $1"
+      exit 1
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+set -- ${ARGS[@]+"${ARGS[@]}"} # restore positional parameters
+
+if [ $# -ne 1 ]; then
+	usage
+  emsg "error: incorrect args provided"
+  exit 1
+fi
+
+repository=$1
+echo "cloning $repository"
+
+# Fully qualify the repository name
+repository=$(gh repo view --json nameWithOwner -t '{{.nameWithOwner}}' $repository)
+
+# We have a hopeful format of <host>/<org>/<repo> but just hardcode it to
+# github for now.
+checkout=$CODEHOME/github.com/$repository
+
+mkdir -p "$checkout"
+
+if [ -d "$checkout/.git" ]; then
+  emsg "$checkout already exists"
+  exit 1
+fi
+
+gh repo clone "$repository" "$checkout"
