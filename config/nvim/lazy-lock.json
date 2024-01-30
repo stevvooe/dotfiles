@@ -6,6 +6,7 @@
   "lualine.nvim": { "branch": "master", "commit": "7d131a8d3ba5016229e8a1d08bf8782acea98852" },
   "neoconf.nvim": { "branch": "main", "commit": "bf04719b3b25ba5f6a059c0a10ee67e5996bdc4c" },
   "neodev.nvim": { "branch": "main", "commit": "a69b4c417b7e5bdeee3d181b8ff8dbc5de66fc01" },
+  "nvim-lspconfig": { "branch": "master", "commit": "021906284dcfb938bc236f8295af2650c60cb807" },
   "nvim-web-devicons": { "branch": "master", "commit": "aaec87dbdaa776bfa0a13c8694bec9bcb7454719" },
   "plenary.nvim": { "branch": "master", "commit": "4f71c0c4a196ceb656c824a70792f3df3ce6bb6d" },
   "telescope-fzf-native.nvim": { "branch": "main", "commit": "6c921ca12321edaa773e324ef64ea301a1d0da62" },

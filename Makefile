@@ -11,6 +11,7 @@ all: \
 	gpg-setup \
 	git-setup \
 	zsh-setup \
+	go-setup \
 	rust-setup \
 	nvim-setup
 
@@ -75,6 +76,10 @@ zsh-setup: submodules
 # else
 # echo "Shell already defaults to zsh"
 # endif
+#
+
+go-setup:
+	go install golang.org/x/tools/gopls@latest
 
 rust-setup:
 	if which rustup; then \
