@@ -3,6 +3,7 @@
   "gitsigns.nvim": { "branch": "main", "commit": "2c2463dbd82eddd7dbab881c3a62cfbfbe3c67ae" },
   "gruvbox-material": { "branch": "master", "commit": "479150eb46ddf7a724782730b1414a9b6bbe4628" },
   "lazy.nvim": { "branch": "main", "commit": "28126922c9b54e35a192ac415788f202c3944c9f" },
+  "lualine.nvim": { "branch": "master", "commit": "7d131a8d3ba5016229e8a1d08bf8782acea98852" },
   "neoconf.nvim": { "branch": "main", "commit": "bf04719b3b25ba5f6a059c0a10ee67e5996bdc4c" },
   "neodev.nvim": { "branch": "main", "commit": "a69b4c417b7e5bdeee3d181b8ff8dbc5de66fc01" },
   "nvim-web-devicons": { "branch": "master", "commit": "aaec87dbdaa776bfa0a13c8694bec9bcb7454719" },
