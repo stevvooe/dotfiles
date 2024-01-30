@@ -23,3 +23,9 @@ fi
 [[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+if which nvim > /dev/null; then
+  export EDITOR=$(which nvim)
+else
+  export EDITOR=$(which vim)
+fi

@@ -3,7 +3,7 @@ DEFAULT_SHELL := $(shell dscl . -read ~/ UserShell | sed 's/UserShell: //') # on
 export STOW_DIR = $(DOTFILES)
 export XDG_CONFIG_HOME = $(HOME)/.config
 
-all: submodules brew link gpg-setup git-setup zsh-setup rust-setup
+all: submodules brew link gpg-setup git-setup zsh-setup rust-setup nvim-setup
 
 submodules:
 	git submodule update --init --recursive # ensure that .zprezto is fully pulled
@@ -64,3 +64,5 @@ rust-setup:
 	else \
 		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh; \
 	fi
+
+nvim-setup: link-config brew-packages
