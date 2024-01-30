@@ -3,7 +3,16 @@ DEFAULT_SHELL := $(shell dscl . -read ~/ UserShell | sed 's/UserShell: //') # on
 export STOW_DIR = $(DOTFILES)
 export XDG_CONFIG_HOME = $(HOME)/.config
 
-all: submodules brew link gpg-setup git-setup zsh-setup rust-setup nvim-setup
+all: \
+	submodules \
+	brew \
+	link \
+	ssh-setup \
+	gpg-setup \
+	git-setup \
+	zsh-setup \
+	rust-setup \
+	nvim-setup
 
 submodules:
 	git submodule update --init --recursive # ensure that .zprezto is fully pulled
@@ -38,6 +47,12 @@ unlink-runcoms: stow
 	stow --delete -t $(HOME) runcoms
 	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE.bak ]; then \
 		mv -v $(HOME)/$$FILE.bak $(HOME)/$${FILE%%.bak}; fi; done
+
+ssh-setup: ~/.ssh/id_ed25519
+
+~/.ssh/id_ed25519:
+	# Generate a new ssh key for each new machine, if not already present.
+	ssh-keygen -t ed25519
 
 gpg-setup: brew-packages .gpg-key-generated
 	echo "pinentry-program $(which pinentry-mac)" >> ~/.gnupg/gpg-agent.conf # don't manage this with dotfiles
