@@ -17,7 +17,9 @@ map("n", "<leader>gt", "<cmd> Telescope git_status <CR>")
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float)
 vim.keymap.set("n", "[d", vim.diagnostic.goto_prev)
 vim.keymap.set("n", "]d", vim.diagnostic.goto_next)
+-- map("n", "<leader>q", "<cmd> lua vim.diagnostic.setloclist() <CR> <cmd> Telescope loclist <CR>") TODO: integrate telescope.
 vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist)
+vim.keymap.set("n", "<leader>Q", vim.diagnostic.setqflist)
 
 -- Treeview control
 map("n", "<leader>t", "<cmd> NvimTreeToggle <CR>")
