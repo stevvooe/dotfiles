@@ -67,6 +67,14 @@ local plugins = {
       require("plugins.configs.lspconfig")
     end,
   },
+    -- syntax highlighting
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    config = function()
+      require("plugins.configs.treesitter")
+    end,
+  },
 }
 
 require("lazy").setup(plugins, require "plugins.configs.lazy")
