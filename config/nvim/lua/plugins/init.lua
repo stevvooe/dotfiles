@@ -12,8 +12,12 @@ local plugins = {
       -- refer to the configuration section below
     }
   },
-  { "folke/neoconf.nvim", cmd = "Neoconf" },
-  "folke/neodev.nvim",
+  {
+    "folke/neodev.nvim",
+    config = function()
+      require("neodev").setup()
+    end,
+  },
   {
     "sainnhe/gruvbox-material",
     lazy = false,
@@ -42,7 +46,7 @@ local plugins = {
       require("nvim-web-devicons").setup()
     end,
   },
-  { 
+  {
     'akinsho/bufferline.nvim',
     version = "*",
     dependencies = 'nvim-tree/nvim-web-devicons',
