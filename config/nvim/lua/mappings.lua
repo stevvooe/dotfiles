@@ -23,3 +23,10 @@ vim.keymap.set("n", "<leader>Q", vim.diagnostic.setqflist)
 
 -- Treeview control
 map("n", "<leader>t", "<cmd> NvimTreeToggle <CR>")
+
+-- buffer navigation
+map("n", "<C-j>", "<cmd> bnext <CR>")
+map("n", "<C-k>", "<cmd> bprev <CR>")
+map("n", "<C-b>", "<cmd> Telescope buffers  <CR>")
+map("n", "<leader>b", "<cmd> bnext <CR>")
+map("n", "<leader>B", "<cmd> bprev <CR>")
