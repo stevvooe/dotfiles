@@ -79,6 +79,14 @@ local plugins = {
       require("plugins.configs.treesitter")
     end,
   },
+    -- file tree
+  {
+    "nvim-tree/nvim-tree.lua",
+    cmd = { "NvimTreeToggle", "NvimTreeFocus" },
+    config = function()
+      require("nvim-tree").setup()
+    end,
+  },
 }
 
 require("lazy").setup(plugins, require "plugins.configs.lazy")
