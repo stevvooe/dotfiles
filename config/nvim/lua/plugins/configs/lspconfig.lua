@@ -1,6 +1,5 @@
 local lspconfig = require("lspconfig")
 
-
 -- Use LspAttach autocommand to only map the following keys
 -- after the language server attaches to the current buffer
 vim.api.nvim_create_autocmd('LspAttach', {
@@ -74,6 +73,9 @@ lspconfig.lua_ls.setup({
     Lua = {
       completion = {
         callSnippet = "Replace"
+      },
+      diagnostics = {
+        globals = { 'vim' }
       }
     }
   }
