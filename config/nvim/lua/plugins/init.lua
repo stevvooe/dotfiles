@@ -105,6 +105,7 @@ local plugins = {
 
       -- Icon config ripped from lazyvim: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/init.lua.
       -- May want to put this elsewhere or find how we can manage this as a package.
+      -- Consider using https://github.com/hrsh7th/nvim-cmp/wiki/Menu-Appearance#basic-customisations
       local icons = {
         misc = {
           dots = "󰇘",
