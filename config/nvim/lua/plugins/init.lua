@@ -29,7 +29,9 @@ local plugins = {
   {
     'nvim-telescope/telescope.nvim',
     tag = '0.1.5',
-    dependencies = { 'nvim-lua/plenary.nvim' },
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+    },
     config = function()
       require("plugins.configs.telescope")
     end
@@ -46,6 +48,15 @@ local plugins = {
     config = function()
       require("nvim-web-devicons").setup()
     end,
+  },
+  {
+    "folke/trouble.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    opts = {
+      -- your configuration comes here
+      -- or leave it empty to use the default settings
+      -- refer to the configuration section below
+    },
   },
   {
     'akinsho/bufferline.nvim',
