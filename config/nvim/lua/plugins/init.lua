@@ -27,7 +27,15 @@ return {
     },
     config = function()
       require('lualine').setup({
-        options = { theme = 'auto' }
+        options = { theme = 'auto' },
+        sections = {
+          lualine_c = {
+            {
+              'filename',
+              path = 1, -- provides relative filename
+            },
+          },
+        }
       })
     end,
   },
