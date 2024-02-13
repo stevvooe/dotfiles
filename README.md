@@ -23,7 +23,7 @@ reapplied. However, that might take some effort to maintain efficiently.
 
 Somewhat based off the following:
 
-https://github.com/webpro/dotfiles/blob/main/Makefile
-https://drewdevault.com/2019/12/30/dotfiles.html
-https://docs.github.com/en/codespaces/setting-your-user-preferences/personalizing-github-codespaces-for-your-account#dotfiles
-https://github.com/NvChad/tinyvim
+- https://github.com/webpro/dotfiles/blob/main/Makefile
+- https://drewdevault.com/2019/12/30/dotfiles.html
+- https://docs.github.com/en/codespaces/setting-your-user-preferences/personalizing-github-codespaces-for-your-account#dotfiles
+- https://github.com/NvChad/tinyvim
