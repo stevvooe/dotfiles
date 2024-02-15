@@ -37,7 +37,8 @@ link-bin: stow bin/*
 
 link-runcoms: stow runcoms/.*
 	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE -a ! -h $(HOME)/$$FILE ]; then \
-		mv -v $(HOME)/$$FILE{,.bak}; fi; done
+		mv -v $(HOME)/$$FILE{,.bak}; fi; \
+	done
 	stow -t $(HOME) runcoms
 
 link-config: stow config/*
