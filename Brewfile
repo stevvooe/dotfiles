@@ -11,4 +11,4 @@ brew "pinentry-mac"
 brew "ripgrep"
 brew "stow"
 brew "tree"
-
+brew "awscli"
