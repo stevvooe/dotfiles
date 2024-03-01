@@ -49,9 +49,9 @@ return {
   },
   {
     "github/copilot.vim",
+    cmd = "Copilot",
     config = function()
-      require("copilot").setup()
+      vim.cmd("Copilot setup")
     end,
-  },
-
+  }
 }
