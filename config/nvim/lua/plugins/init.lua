@@ -47,4 +47,11 @@ return {
       require("nvim-tree").setup()
     end,
   },
+  {
+    "github/copilot.vim",
+    config = function()
+      require("copilot").setup()
+    end,
+  },
+
 }
