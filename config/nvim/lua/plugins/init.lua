@@ -53,5 +53,9 @@ return {
     config = function()
       vim.cmd("Copilot setup")
     end,
-  }
+  },
+  {
+    "tpope/vim-fugitive",
+    cmd = "Git"
+  },
 }
