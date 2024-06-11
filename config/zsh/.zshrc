@@ -31,3 +31,7 @@ fi
 
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
+
+[ -f ~/.cargo/env ] && . ~/.cargo/env
+
+[ -f "$(which go)" ] && go env -w 'GOPRIVATE=github.com/docker/*'
