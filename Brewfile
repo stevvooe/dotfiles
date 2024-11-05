@@ -1,5 +1,6 @@
 brew "awscli"
 brew "coreutils"
+brew "flamegraph"
 brew "fzf"
 brew "gpg2"
 brew "gh"
