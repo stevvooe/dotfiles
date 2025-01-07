@@ -32,7 +32,10 @@ stow: brew
 
 link: link-runcoms link-config link-bin
 
-link-bin: stow bin/*
+$(HOME)/bin:
+	mkdir -p "$@"
+
+link-bin: stow bin/* $(HOME)/bin
 	stow -t $(HOME)/bin bin
 
 link-runcoms: stow runcoms/.*
@@ -63,11 +66,17 @@ gpg-setup: brew-packages .gpg-key-generated
 	gpg --full-generate-key
 	touch .gpg-key-generated # do this once per machine
 
-git-setup: brew-packages config/git/signingkey.inc
+git-setup: brew-packages config/git/signingkey.inc config/git/email.inc
 
 config/git/signingkey.inc: .gpg-key-generated
 	git config --file $(DOTFILES)/config/git/signingkey.inc user.signingkey \
 		$$(gpg --list-secret-keys --keyid-format LONG --with-colons | awk -F: '/^sec:/ { print $$5 }' | head -n1)
+
+config/git/email.inc:
+ifndef EMAIL
+	$(error EMAIL is undefined)
+endif
+	git config --file $(DOTFILES)/config/git/email.inc user.email "$$EMAIL"
 
 zsh-setup: submodules
 # This ifneq is just broken for some reason
