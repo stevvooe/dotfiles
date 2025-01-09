@@ -11,6 +11,11 @@ fi
 # Authors:
 #   Sorin Ionescu <sorin.ionescu@gmail.com>
 #
+#
+
+# Load virtualenvwrapper prior to loading prezto plugins
+venvw=$(brew --prefix virtualenvwrapper)/bin/virtualenvwrapper_lazy.sh
+[ -f "$venvw" ] && source "$venvw"
 
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
