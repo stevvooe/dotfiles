@@ -7,3 +7,6 @@ defaults write -g ApplePressAndHoldEnabled 0
 
 # disable with defaults -currentHost delete -g AppleFontSmoothing
 defaults -currentHost write -g AppleFontSmoothing -int 0
+
+# Show seconds on top right clock
+defaults write com.apple.menuextra.clock ShowSeconds -bool true
