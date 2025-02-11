@@ -1,4 +1,5 @@
 brew "awscli"
+brew "cloc"
 brew "coreutils"
 brew "flamegraph"
 brew "fzf"
