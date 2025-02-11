@@ -4,3 +4,4 @@ Brewfile.lock.json
 .gpg-key-generated
 config/zsh/.zsh_history
 config/zsh/.zshrc.secrets
+config/zsh/.zsh_sessions/
