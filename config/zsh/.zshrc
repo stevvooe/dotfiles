@@ -40,3 +40,8 @@ fi
 [ -f ~/.cargo/env ] && . ~/.cargo/env
 
 [ -f "$(which go)" ] && go env -w 'GOPRIVATE=github.com/docker/*'
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=(/Users/sjd/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
