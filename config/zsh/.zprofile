@@ -51,8 +51,9 @@ typeset -gU cdpath fpath mailpath path
 path=(
   $HOME/go/{,s}bin(N)
   $HOME/{,s}bin(N)
-  /opt/{homebrew,local}/{,s}bin(N)
+  /usr/local/go/bin
   /usr/local/{,s}bin(N)
+  /opt/{homebrew,local}/{,s}bin(N)
   $path
 )
 
