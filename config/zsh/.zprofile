@@ -73,3 +73,9 @@ fi
 if [[ -z "$LESSOPEN" ]] && (( $#commands[(i)lesspipe(|.sh)] )); then
   export LESSOPEN="| /usr/bin/env $commands[(i)lesspipe(|.sh)] %s 2>&-"
 fi
+
+venvw="$(brew --prefix virtualenvwrapper)/bin/virtualenvwrapper.sh"
+[ -f "$venvw" ] && source "$venvw"
+
+# Ensure that git can use gpg for signing
+export GPG_TTY=$TTY
