@@ -58,7 +58,7 @@ repository=$(gh repo view --json nameWithOwner -t '{{.nameWithOwner}}' $reposito
 
 # We have a hopeful format of <host>/<org>/<repo> but just hardcode it to
 # github for now.
-checkout=$CODEHOME/github.com/$repository
+checkout="$CODEHOME/github.com/$repository"
 
 mkdir -p "$checkout"
 
