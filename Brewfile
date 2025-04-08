@@ -1,4 +1,5 @@
 brew "awscli"
+brew "azure-cli"
 brew "cloc"
 brew "coreutils"
 brew "flamegraph"
