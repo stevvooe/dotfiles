@@ -31,3 +31,5 @@ brew "tree"
 brew "virtualenvwrapper"
 brew "watch"
 brew "wget"
+
+cask "google-cloud-sdk"
