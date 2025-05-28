@@ -111,5 +111,7 @@ return {
         }
       }
     })
+
+    lspconfig.pyright.setup {}
   end,
 }
