@@ -13,6 +13,7 @@ all: \
 	zsh-setup \
 	go-setup \
 	rust-setup \
+	npm-setup \
 	nvim-setup
 
 submodules:
@@ -102,5 +103,9 @@ rust-setup:
 	fi
 	rustup component add rust-analyzer
 	rustup component add rustfmt
+
+npm-setup: brew-packages
+	which npm || (echo "npm not found, please install Node.js first" && exit 1)
+	cat $(DOTFILES)/npm-global-packages.txt | xargs -I {} npm install -g {}
 
 nvim-setup: link-config brew-packages
