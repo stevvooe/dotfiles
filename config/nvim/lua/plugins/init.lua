@@ -58,4 +58,13 @@ return {
     "tpope/vim-fugitive",
     cmd = "Git"
   },
+  {
+    "greggh/claude-code.nvim",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+    },
+    config = function()
+      require("claude-code").setup()
+    end
+  },
 }

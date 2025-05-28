@@ -41,3 +41,8 @@ vim.keymap.set("n", "<C-k>", "<cmd> bprev <CR>")
 vim.keymap.set("n", "<C-b>", "<cmd> Telescope buffers  <CR>")
 vim.keymap.set("n", "<leader>b", "<cmd> bnext <CR>")
 vim.keymap.set("n", "<leader>B", "<cmd> bprev <CR>")
+
+-- claude-code mappings
+vim.keymap.set("n", "<leader>ac", function() require("claude-code").toggle() end, { desc = "Toggle Claude Code terminal" })
+vim.keymap.set("n", "<leader>cC", function() require("claude-code").toggle_with_args("--continue") end, { desc = "Toggle Claude Code with --continue" })
+vim.keymap.set("n", "<leader>cV", function() require("claude-code").toggle_with_args("--verbose") end, { desc = "Toggle Claude Code with --verbose" })
