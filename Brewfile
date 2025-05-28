@@ -1,3 +1,4 @@
+brew "act"
 brew "awscli"
 brew "azure-cli"
 brew "cloc"
