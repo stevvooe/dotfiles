@@ -112,6 +112,46 @@ return {
       }
     })
 
-    lspconfig.pyright.setup {}
+    local function find_venv_python(start_path)
+      local path = start_path
+      while path ~= "/" do
+        -- Check for Poetry project first
+        local pyproject_path = path .. "/pyproject.toml"
+        if vim.fn.filereadable(pyproject_path) == 1 then
+          -- Try to get Poetry's virtualenv path
+          local handle = io.popen("cd " .. vim.fn.shellescape(path) .. " && poetry env info --path 2>/dev/null")
+          if handle then
+            local poetry_venv = handle:read("*a"):gsub("%s+", "")
+            handle:close()
+            if poetry_venv ~= "" and vim.fn.isdirectory(poetry_venv) == 1 then
+              return poetry_venv .. "/bin/python"
+            end
+          end
+        end
+
+        -- Fall back to .venv directory (existing approach)
+        local venv_path = path .. "/.venv"
+        if vim.fn.isdirectory(venv_path) == 1 then
+          return venv_path .. "/bin/python"
+        end
+        path = vim.fn.fnamemodify(path, ":h")
+      end
+      return vim.fn.exepath("python")
+    end
+
+    lspconfig.pyright.setup {
+      before_init = function(_, config)
+        config.settings.python.pythonPath = find_venv_python(config.root_dir)
+      end,
+      settings = {
+        python = {
+          analysis = {
+            autoSearchPaths = true,
+            useLibraryCodeForTypes = true,
+            diagnosticMode = "workspace",
+          }
+        }
+      }
+    }
   end,
 }
