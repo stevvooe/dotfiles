@@ -1,8 +1,6 @@
 return {
   "neovim/nvim-lspconfig",
   config = function()
-    local lspconfig = require("lspconfig")
-
     -- Use LspAttach autocommand to only map the following keys
     -- after the language server attaches to the current buffer
     vim.api.nvim_create_autocmd('LspAttach', {
@@ -34,7 +32,11 @@ return {
       end,
     })
 
-    lspconfig.gopls.setup({
+    -- gopls configuration
+    vim.lsp.config.gopls = {
+      cmd = { 'gopls' },
+      filetypes = { 'go', 'gomod', 'gowork', 'gotmpl' },
+      root_markers = { 'go.work', 'go.mod', '.git' },
       settings = {
         gopls = {
           analyses = {
@@ -44,7 +46,7 @@ return {
           gofumpt = true,
         },
       },
-    })
+    }
 
     -- goimports setup
     vim.api.nvim_create_autocmd("BufWritePre", {
@@ -52,11 +54,6 @@ return {
       callback = function()
         local params = vim.lsp.util.make_range_params()
         params.context = { only = { "source.organizeImports" } }
-        -- buf_request_sync defaults to a 1000ms timeout. Depending on your
-        -- machine and codebase, you may want longer. Add an additional
-        -- argument after params if you find that you have to write the file
-        -- twice for changes to be saved.
-        -- E.g., vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 3000)
         local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params)
         for cid, res in pairs(result or {}) do
           for _, r in pairs(res.result or {}) do
@@ -70,8 +67,11 @@ return {
       end
     })
 
-    -- lua LS setup, mostly for nvim dev
-    lspconfig.lua_ls.setup({
+    -- lua_ls configuration, mostly for nvim dev
+    vim.lsp.config.lua_ls = {
+      cmd = { 'lua-language-server' },
+      filetypes = { 'lua' },
+      root_markers = { '.luarc.json', '.luarc.jsonc', '.luacheckrc', '.stylua.toml', 'stylua.toml', 'selene.toml', 'selene.yml', '.git' },
       settings = {
         Lua = {
           completion = {
@@ -82,16 +82,16 @@ return {
           }
         }
       }
-    })
+    }
 
-    -- rust, hope this works.
-    local on_attach = function(client, bufnr)
-    --    require'completion'.on_attach(client)
-      vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
-    end
-
-    lspconfig.rust_analyzer.setup({
-      on_attach = on_attach,
+    -- rust_analyzer configuration
+    vim.lsp.config.rust_analyzer = {
+      cmd = { 'rust-analyzer' },
+      filetypes = { 'rust' },
+      root_markers = { 'Cargo.toml', 'rust-project.json' },
+      on_attach = function(client, bufnr)
+        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+      end,
       settings = {
         ["rust-analyzer"] = {
           imports = {
@@ -110,8 +110,9 @@ return {
           },
         }
       }
-    })
+    }
 
+    -- Helper function to find Python venv
     local function find_venv_python(start_path)
       local path = start_path
       while path ~= "/" do
@@ -129,7 +130,7 @@ return {
           end
         end
 
-        -- Fall back to .venv directory (existing approach)
+        -- Fall back to .venv directory
         local venv_path = path .. "/.venv"
         if vim.fn.isdirectory(venv_path) == 1 then
           return venv_path .. "/bin/python"
@@ -139,7 +140,11 @@ return {
       return vim.fn.exepath("python")
     end
 
-    lspconfig.pyright.setup {
+    -- pyright configuration
+    vim.lsp.config.pyright = {
+      cmd = { 'pyright-langserver', '--stdio' },
+      filetypes = { 'python' },
+      root_markers = { 'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt', 'Pipfile', 'pyrightconfig.json', '.git' },
       before_init = function(_, config)
         config.settings.python.pythonPath = find_venv_python(config.root_dir)
       end,
@@ -153,5 +158,11 @@ return {
         }
       }
     }
+
+    -- Enable the LSP servers
+    vim.lsp.enable('gopls')
+    vim.lsp.enable('lua_ls')
+    vim.lsp.enable('rust_analyzer')
+    vim.lsp.enable('pyright')
   end,
 }
