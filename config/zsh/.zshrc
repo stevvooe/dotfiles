@@ -13,10 +13,6 @@ fi
 #
 #
 
-# Load virtualenvwrapper prior to loading prezto plugins
-venvw=$(brew --prefix virtualenvwrapper)/bin/virtualenvwrapper_lazy.sh
-[ -f "$venvw" ] && source "$venvw"
-
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -37,9 +33,10 @@ fi
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
-[ -f ~/.cargo/env ] && . ~/.cargo/env
-
-[ -f "$(which go)" ] && go env -w 'GOPRIVATE=github.com/docker/*'
+if command -v go >/dev/null 2>&1; then
+  # Ensure private Docker modules resolve without repeatedly rewriting go env files
+  export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/docker/*"
+fi
 # The following lines have been added by Docker Desktop to enable Docker CLI completions.
 fpath=(/Users/sjd/.docker/completions $fpath)
 autoload -Uz compinit

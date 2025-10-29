@@ -18,10 +18,22 @@ fi
 #
 
 if [[ -z "$EDITOR" ]]; then
-  export EDITOR='nano'
+  if command -v nvim >/dev/null 2>&1; then
+    export EDITOR='nvim'
+  elif command -v vim >/dev/null 2>&1; then
+    export EDITOR='vim'
+  else
+    export EDITOR='nano'
+  fi
 fi
 if [[ -z "$VISUAL" ]]; then
-  export VISUAL='nano'
+  if command -v nvim >/dev/null 2>&1; then
+    export VISUAL='nvim'
+  elif command -v vim >/dev/null 2>&1; then
+    export VISUAL='vim'
+  else
+    export VISUAL='nano'
+  fi
 fi
 if [[ -z "$PAGER" ]]; then
   export PAGER='less'

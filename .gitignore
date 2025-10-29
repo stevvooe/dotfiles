@@ -5,3 +5,4 @@ Brewfile.lock.json
 config/zsh/.zsh_history
 config/zsh/.zshrc.secrets
 config/zsh/.zsh_sessions/
+config/zsh/.zcompdump*

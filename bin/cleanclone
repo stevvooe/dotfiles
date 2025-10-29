@@ -50,6 +50,11 @@ if [ $# -ne 1 ]; then
   exit 1
 fi
 
+if ! command -v gh >/dev/null 2>&1; then
+  emsg "error: gh (GitHub CLI) not found in PATH; install it from https://cli.github.com/"
+  exit 1
+fi
+
 repository=$1
 echo "cloning $repository"
 
