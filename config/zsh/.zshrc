@@ -30,6 +30,9 @@ else
   export EDITOR=$(which vim)
 fi
 
+# Default Codex to read-only sandbox with approval prompts.
+alias codex='nocorrect command codex --sandbox read-only --ask-for-approval on-request'
+
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
