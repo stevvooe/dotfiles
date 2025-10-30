@@ -1,3 +1,6 @@
+-- Fall back to legacy syntax highlighting when Tree-sitter isn't available yet
+vim.cmd("syntax enable")
+
 vim.opt.number = true
 vim.opt.relativenumber = true
 

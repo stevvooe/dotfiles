@@ -1,4 +1,12 @@
 return {
+  { import = "plugins.colorscheme" },
+  { import = "plugins.treesitter" },
+  { import = "plugins.bufferline" },
+  { import = "plugins.cmp" },
+  { import = "plugins.lspconfig" },
+  { import = "plugins.neodev" },
+  { import = "plugins.telescope" },
+  { import = "plugins.which-key" },
   {
     "lewis6991/gitsigns.nvim",
     config = function()

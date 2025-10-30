@@ -114,8 +114,14 @@ return {
 
     -- Helper function to find Python venv
     local function find_venv_python(start_path)
-      local path = start_path
-      while path ~= "/" do
+      local fallback = vim.fn.exepath("python")
+      if not start_path or start_path == "" then
+        return fallback
+      end
+
+      local path = vim.fn.fnamemodify(start_path, ":p")
+      local prev_path
+      while path and path ~= "/" and path ~= prev_path do
         -- Check for Poetry project first
         local pyproject_path = path .. "/pyproject.toml"
         if vim.fn.filereadable(pyproject_path) == 1 then
@@ -135,9 +141,10 @@ return {
         if vim.fn.isdirectory(venv_path) == 1 then
           return venv_path .. "/bin/python"
         end
+        prev_path = path
         path = vim.fn.fnamemodify(path, ":h")
       end
-      return vim.fn.exepath("python")
+      return fallback
     end
 
     -- pyright configuration
