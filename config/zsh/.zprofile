@@ -39,6 +39,16 @@ if [[ -z "$PAGER" ]]; then
   export PAGER='less'
 fi
 
+if [[ -z "$PYENV_ROOT" ]]; then
+  export PYENV_ROOT="$HOME/.pyenv"
+fi
+if [[ -d "$PYENV_ROOT/bin" ]]; then
+  export PATH="$PYENV_ROOT/bin:$PATH"
+fi
+if command -v pyenv >/dev/null 2>&1; then
+  eval "$(pyenv init --path)"
+fi
+
 #
 # Language
 #

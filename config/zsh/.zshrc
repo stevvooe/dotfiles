@@ -33,6 +33,16 @@ fi
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
+if [[ -z "$PYENV_ROOT" ]]; then
+  export PYENV_ROOT="$HOME/.pyenv"
+fi
+if [[ -d "$PYENV_ROOT/bin" ]] && [[ ":$PATH:" != *":$PYENV_ROOT/bin:"* ]]; then
+  export PATH="$PYENV_ROOT/bin:$PATH"
+fi
+if command -v pyenv >/dev/null 2>&1; then
+  eval "$(pyenv init -)"
+fi
+
 if command -v go >/dev/null 2>&1; then
   # Ensure private Docker modules resolve without repeatedly rewriting go env files
   export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/docker/*"
