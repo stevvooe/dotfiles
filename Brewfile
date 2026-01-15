@@ -38,3 +38,4 @@ brew "wget"
 
 cask "codex"
 cask "google-cloud-sdk"
+cask "ghostty"
