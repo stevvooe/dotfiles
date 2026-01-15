@@ -49,8 +49,6 @@
 # resize-overlay-duration = 4s 200ms
 #
 macos-icon = retro
-# macos-window-buttons = hidden
-macos-titlebar-style = hidden
 
 font-thicken = true
 font-thicken-strength = 100
