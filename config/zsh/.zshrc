@@ -55,3 +55,8 @@ fpath=(/Users/sjd/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 # End of Docker CLI completions
+
+# Configures eza directory
+export EZA_CONFIG_DIR=$XDG_CONFIG_HOME/eza
+export EZA_ICONS_AUTO=1
+alias ez="eza -l --git"
