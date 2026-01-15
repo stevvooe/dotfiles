@@ -35,7 +35,7 @@ brew "tree"
 brew "virtualenvwrapper"
 brew "watch"
 brew "wget"
+brew "yazi"
 
-cask "codex"
 cask "google-cloud-sdk"
 cask "ghostty"
