@@ -38,5 +38,5 @@ brew "watch"
 brew "wget"
 brew "yazi"
 
-cask "google-cloud-sdk"
+cask "google-cli"
 cask "ghostty"
