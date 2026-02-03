@@ -65,7 +65,7 @@ ssh-setup: ~/.ssh/id_ed25519
 	ssh-keygen -t ed25519
 
 gpg-setup: brew-packages .gpg-key-generated
-	echo "pinentry-program $$(which pinentry-mac)" >> ~/.gnupg/gpg-agent.conf # don't manage this with dotfiles
+	grep -q "pinentry-program" ~/.gnupg/gpg-agent.conf || echo "pinentry-program $$(which pinentry-mac)" >> ~/.gnupg/gpg-agent.conf # don't manage this with dotfiles
 
 .gpg-key-generated:
 	gpg --full-generate-key
