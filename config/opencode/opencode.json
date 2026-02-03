@@ -4,6 +4,7 @@
     "*": "ask",
     "read": "allow",
     "glob": "allow",
+    "grep": "allow",
     "bash": {
       "git *": "ask",
       "git status": "allow",
