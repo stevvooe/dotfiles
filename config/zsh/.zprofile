@@ -102,3 +102,7 @@ venvw="$(brew --prefix virtualenvwrapper)/bin/virtualenvwrapper.sh"
 
 # Ensure that git can use gpg for signing
 export GPG_TTY=$TTY
+
+# proto
+export PROTO_HOME="$HOME/.proto";
+export PATH="$PROTO_HOME/shims:$PROTO_HOME/bin:$PATH";
