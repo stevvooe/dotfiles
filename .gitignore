@@ -6,3 +6,4 @@ config/zsh/.zsh_history
 config/zsh/.zshrc.secrets
 config/zsh/.zsh_sessions/
 config/zsh/.zcompdump*
+config/opencode/node_modules

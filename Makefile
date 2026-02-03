@@ -93,15 +93,9 @@ zsh-setup: submodules
 # endif
 #
 
-go-setup:
-	go install golang.org/x/tools/gopls@latest
+go-setup: brew-packages
 
-rust-setup:
-	if which rustup; then \
-		rustup update; \
-	else \
-		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh; \
-	fi
+rust-setup: brew-packages
 	rustup component add rust-analyzer
 	rustup component add rustfmt
 
