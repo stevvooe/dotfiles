@@ -19,12 +19,12 @@ vim.keymap.set("n", "<leader>gt", "<cmd> Telescope git_status <CR>")
 local trouble = require('trouble')
 -- Trouble
 -- TODO: diff these out with mappings in init.lua
-vim.keymap.set("n", "<leader>d", "<cmd> Trouble diagnostics toggle <CR>")
-vim.keymap.set("n", "<leader>xw", "<cmd> Trouble diagnostics toggle <CR>")
-vim.keymap.set("n", "<leader>xd", "<cmd> Trouble diagnostics toggle filter.buf=0 <CR>")
-vim.keymap.set("n", "<leader>xq", "<cmd> Trouble qflist toggle <CR>")
-vim.keymap.set("n", "<leader>xl", "<cmd> Trouble loclist toggle <CR>")
-vim.keymap.set("n", "gR", "<cmd> Trouble lsp toggle focus=false win.position=right <CR>")
+vim.keymap.set("n", "<leader>d", "<cmd> Trouble diagnostics toggle <CR>", { desc = "Diagnostics (Trouble)" })
+vim.keymap.set("n", "<leader>xw", "<cmd> Trouble diagnostics toggle <CR>", { desc = "Workspace diagnostics (Trouble)" })
+vim.keymap.set("n", "<leader>xd", "<cmd> Trouble diagnostics toggle filter.buf=0 <CR>", { desc = "Buffer diagnostics (Trouble)" })
+vim.keymap.set("n", "<leader>xq", "<cmd> Trouble qflist toggle <CR>", { desc = "Quickfix list (Trouble)" })
+vim.keymap.set("n", "<leader>xl", "<cmd> Trouble loclist toggle <CR>", { desc = "Location list (Trouble)" })
+vim.keymap.set("n", "gR", "<cmd> Trouble lsp toggle focus=false win.position=right <CR>", { desc = "LSP references (Trouble)" })
 
 -- Diagnostics mappings for lsp.
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float)
