@@ -19,12 +19,12 @@ vim.keymap.set("n", "<leader>gt", "<cmd> Telescope git_status <CR>")
 local trouble = require('trouble')
 -- Trouble
 -- TODO: diff these out with mappings in init.lua
-vim.keymap.set("n", "<leader>d", function() trouble.toggle() end)
-vim.keymap.set("n", "<leader>xw", function() trouble.toggle("workspace_diagnostics") end)
-vim.keymap.set("n", "<leader>xd", function() trouble.toggle("document_diagnostics") end)
-vim.keymap.set("n", "<leader>xq", function() trouble.toggle("quickfix") end)
-vim.keymap.set("n", "<leader>xl", function() trouble.toggle("loclist") end)
-vim.keymap.set("n", "gR", function() trouble.toggle("lsp_references") end)
+vim.keymap.set("n", "<leader>d", "<cmd> Trouble diagnostics toggle <CR>")
+vim.keymap.set("n", "<leader>xw", "<cmd> Trouble diagnostics toggle <CR>")
+vim.keymap.set("n", "<leader>xd", "<cmd> Trouble diagnostics toggle filter.buf=0 <CR>")
+vim.keymap.set("n", "<leader>xq", "<cmd> Trouble qflist toggle <CR>")
+vim.keymap.set("n", "<leader>xl", "<cmd> Trouble loclist toggle <CR>")
+vim.keymap.set("n", "gR", "<cmd> Trouble lsp toggle focus=false win.position=right <CR>")
 
 -- Diagnostics mappings for lsp.
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float)
