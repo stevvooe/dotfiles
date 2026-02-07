@@ -13,6 +13,9 @@ return {
   { import = "plugins.trouble" },
   { import = "plugins.lualine" },
   { import = "plugins.noice" },
+  { import = "plugins.todo-comments" },
+  { import = "plugins.oil" },
+  { import = "plugins.harpoon" },
   {
     "nvim-tree/nvim-web-devicons",
     config = function()
@@ -36,6 +39,18 @@ return {
   {
     "tpope/vim-fugitive",
     cmd = "Git"
+  },
+  { "tpope/vim-sleuth" },
+  {
+    "mbbill/undotree",
+    keys = {
+      { "<leader>u", "<cmd>UndotreeToggle<cr>", desc = "Toggle Undotree" },
+    },
+  },
+  {
+    "j-hui/fidget.nvim",
+    event = "LspAttach",
+    opts = {},
   },
   {
     "greggh/claude-code.nvim",
