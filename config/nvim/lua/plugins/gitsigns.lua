@@ -11,22 +11,10 @@ return {
           vim.keymap.set(mode, l, r, opts)
         end
 
-        -- Navigation
-        map('n', ']c', function()
-          if vim.wo.diff then
-            vim.cmd.normal({']c', bang = true})
-          else
-            gitsigns.nav_hunk('next')
-          end
-        end, { desc = "Gitsigns next hunk" })
+        -- Navigation (buffer-local)
+        map('n', ']h', function() gitsigns.nav_hunk('next') end, { desc = "Gitsigns next hunk" })
+        map('n', '[h', function() gitsigns.nav_hunk('prev') end, { desc = "Gitsigns prev hunk" })
 
-        map('n', '[c', function()
-          if vim.wo.diff then
-            vim.cmd.normal({'[c', bang = true})
-          else
-            gitsigns.nav_hunk('prev')
-          end
-        end, { desc = "Gitsigns prev hunk" })
 
         -- Actions
         map('n', '<leader>hs', gitsigns.stage_hunk, { desc = "Gitsigns stage hunk" })

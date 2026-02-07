@@ -34,5 +34,15 @@ return {
       "<cmd>Trouble qflist toggle<cr>",
       desc = "Quickfix List (Trouble)",
     },
+    {
+      "<leader>d",
+      "<cmd>Trouble diagnostics toggle<cr>",
+      desc = "Diagnostics (Trouble)",
+    },
+    {
+      "gR",
+      "<cmd>Trouble lsp toggle focus=false win.position=right<cr>",
+      desc = "LSP references (Trouble)",
+    },
   },
 }
