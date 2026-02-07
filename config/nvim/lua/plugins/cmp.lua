@@ -6,6 +6,7 @@ return {
     "hrsh7th/cmp-nvim-lsp",
     "hrsh7th/cmp-buffer",
     "hrsh7th/cmp-path",
+    "hrsh7th/cmp-cmdline",
   },
   opts = function()
     vim.api.nvim_set_hl(0, "CmpGhostText", { link = "Comment", default = true })
@@ -148,14 +149,13 @@ return {
       }
     })
 
-    -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
-    --      cmp.setup.cmdline(':', {
-    --        mapping = cmp.mapping.preset.cmdline(),
-    --        sources = cmp.config.sources({
-    --          { name = 'path' }
-    --        }, {
-    --          { name = 'cmdline' }
-    --        })
-    --      })
+    cmp.setup.cmdline(':', {
+      mapping = cmp.mapping.preset.cmdline(),
+      sources = cmp.config.sources({
+        { name = 'path' }
+      }, {
+        { name = 'cmdline' }
+      })
+    })
   end,
 }

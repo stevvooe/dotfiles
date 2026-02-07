@@ -12,6 +12,7 @@ return {
   { import = "plugins.gitsigns" },
   { import = "plugins.trouble" },
   { import = "plugins.lualine" },
+  { import = "plugins.noice" },
   {
     "nvim-tree/nvim-web-devicons",
     config = function()
