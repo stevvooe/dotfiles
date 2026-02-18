@@ -37,6 +37,7 @@ vim.keymap.set("n", "<leader>cV", function() require("claude-code").toggle_with_
 -- quickfix mappings
 vim.keymap.set("n", "<M-j>", "<cmd> cnext <CR>")
 vim.keymap.set("n", "<M-k>", "<cmd> cprev <CR>")
+vim.keymap.set("n", "<M-q>", "<cmd> cclose <CR>", { desc = "Close quickfix list" })
 
 -- git (fugitive)
 vim.keymap.set("n", "<leader>G", "<cmd> Git <CR>", { desc = "Git status" })
