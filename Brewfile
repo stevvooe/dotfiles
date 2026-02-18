@@ -1,6 +1,7 @@
 brew "act"
 brew "awscli"
 brew "azure-cli"
+brew "btop"
 brew "cloc"
 brew "coreutils"
 brew "eza"
