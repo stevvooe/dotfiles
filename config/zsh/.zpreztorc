@@ -41,7 +41,9 @@ zstyle ':prezto:load' pmodule \
   'homebrew' \
   'ssh' \
   'completion' \
+  'syntax-highlighting' \
   'history-substring-search' \
+  'autosuggestions' \
   'python' \
   'git' \
   'prompt'
