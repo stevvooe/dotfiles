@@ -53,10 +53,7 @@ macos-icon = retro
 font-thicken = true
 font-thicken-strength = 100
 
-background-opacity = 0.85
+background-opacity = 0.9
 background-blur = true
 
-# Some possible themes that look nice but default theme looks good
-# theme = "Tomorrow Night"
-# theme = "TokyoNight"
-# theme = "Gruvbox Material Dark"
+theme = Catppuccin Macchiato

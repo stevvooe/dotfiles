@@ -56,4 +56,6 @@ compinit
 # Configures eza directory
 export EZA_CONFIG_DIR=$XDG_CONFIG_HOME/eza
 export EZA_ICONS_AUTO=1
-alias ez="eza -l --git"
+alias ls="eza"
+alias ll="eza -l --git"
+alias la="eza -la --git"
