@@ -43,6 +43,7 @@ brew "virtualenvwrapper"
 brew "watch"
 brew "wget"
 brew "yazi"
+brew "zoxide"
 
 cask "gcloud-cli"
 cask "ghostty"

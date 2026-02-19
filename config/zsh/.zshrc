@@ -59,3 +59,6 @@ export EZA_ICONS_AUTO=1
 alias ls="eza"
 alias ll="eza -l --git"
 alias la="eza -la --git"
+
+# zoxide
+eval "$(zoxide init zsh)"
