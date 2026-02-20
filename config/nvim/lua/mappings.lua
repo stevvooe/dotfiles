@@ -29,6 +29,9 @@ vim.keymap.set("n", "<C-j>", "<cmd> bnext <CR>")
 vim.keymap.set("n", "<C-k>", "<cmd> bprev <CR>")
 vim.keymap.set("n", "<C-b>", "<cmd> Telescope buffers  <CR>")
 
+-- terminal
+vim.keymap.set("t", "<Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
+
 -- claude-code mappings
 vim.keymap.set("n", "<leader>ac", function() require("claude-code").toggle() end, { desc = "Toggle Claude Code terminal" })
 vim.keymap.set("n", "<leader>cC", function() require("claude-code").toggle_with_args("--continue") end, { desc = "Toggle Claude Code with --continue" })
