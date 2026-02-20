@@ -7,6 +7,12 @@
 - When you get something wrong, just fix it. Don't apologize or explain why you were wrong.
 - If I say something doesn't work, investigate the actual problem before suggesting the same fix again.
 
+## Git
+
+- Read-only git commands are fine: `log`, `status`, `diff`, `show`, `blame`, etc.
+- Never run commands that mutate the repository: no commits, pushes, rebases, amends, resets, or checkouts.
+- When asked to commit, suggest a commit message in the repository's existing style, but do not execute it.
+
 ## Code Philosophy
 
 - Write pragmatic, efficient code. Simplicity over cleverness.
