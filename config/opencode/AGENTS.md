@@ -8,6 +8,8 @@
 - If I say something doesn't work, investigate the actual problem before suggesting the same fix again.
 - When given a problem or feature request, don't jump straight to implementation. Present the approach (or multiple options with tradeoffs) and wait for confirmation before writing code. The only exception is trivial, unambiguous changes.
 - If there are meaningful design decisions (data structures, public API shape, error strategy, dependency choices), surface them explicitly. Don't bury decisions in code and hope I agree.
+- NEVER PROPOSE OR APPLY A PATCH WITHOUT FIRST EXPLAINING THE PLAN, TRADEOFFS, AND EXPECTED IMPACT IN PLAIN LANGUAGE.
+- WHEN EXECUTION DEVIATES DUE TO AN ERROR, CONSTRAINT, OR UNEXPECTED OUTCOME, EXPLAIN THE DEVIATION AND UPDATED PLAN BEFORE PROPOSING OR APPLYING ANY PATCH.
 
 ## Workflow
 
@@ -60,9 +62,8 @@ Use subagents to delegate specialized work. Invoke them with `@agent-name` or le
 - `@docs-writer` — when doc comments or package-level documentation need writing or updating
 - `@api-designer` — when designing or reviewing protobuf, gRPC, REST, or inter-service API schemas
 - `@devops` — for Dockerfiles, CI pipelines, and build configuration
-- `@dotfiles` — when a tool, config, or shell setting needs to be added globally via the dotfiles repo
 
-Agents should suggest delegating to other agents when their findings cross into another agent's domain. When a change belongs in the global dotfiles (new brew package, shell alias, tool config), suggest `@dotfiles`. When implementation changes design or uncovers design drift, suggest `@design`.
+Agents should suggest delegating to other agents when their findings cross into another agent's domain. When implementation changes design or uncovers design drift, suggest `@design`.
 
 When working on OpenCode setup in this repo (`config/opencode/*`), load the `opencode-config` skill.
 
