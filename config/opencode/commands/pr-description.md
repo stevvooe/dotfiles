@@ -18,13 +18,13 @@ If `$2` is provided, use it to limit commit history size.
 Use compact inputs only (avoid full-history/full-diff dumps):
 !`git branch --show-current`
 !`git status --short`
-!`BASE=${1:-main}; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; MB=$(git merge-base "$BASE" HEAD); echo "$BASE ($MB)"`
-!`BASE=${1:-main}; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; MB=$(git merge-base "$BASE" HEAD); git log --oneline --decorate --no-merges -n ${2:-30} "$MB"..HEAD`
-!`BASE=${1:-main}; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; MB=$(git merge-base "$BASE" HEAD); git diff --stat "$MB"...HEAD`
-!`for f in .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md .github/PULL_REQUEST_TEMPLATE/*.md .github/pull_request_template/*.md; do [ -f "$f" ] && { echo "TEMPLATE_PATH=$f"; cat "$f"; exit 0; }; done; echo "TEMPLATE_PATH="`
+!`BASE_INPUT=${1:-}; if [ -n "$BASE_INPUT" ]; then git rev-parse --verify "$BASE_INPUT" >/dev/null 2>&1 || { echo "BASE_ERROR=$BASE_INPUT"; exit 0; }; BASE="$BASE_INPUT"; else BASE=main; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; fi; MB=$(git merge-base "$BASE" HEAD); echo "BASE=$BASE"; echo "MERGE_BASE=$MB"`
+!`BASE_INPUT=${1:-}; if [ -n "$BASE_INPUT" ]; then git rev-parse --verify "$BASE_INPUT" >/dev/null 2>&1 || { echo "BASE_ERROR=$BASE_INPUT"; exit 0; }; BASE="$BASE_INPUT"; else BASE=main; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; fi; MB=$(git merge-base "$BASE" HEAD); git log --oneline --decorate --no-merges -n ${2:-30} "$MB"..HEAD`
+!`BASE_INPUT=${1:-}; if [ -n "$BASE_INPUT" ]; then git rev-parse --verify "$BASE_INPUT" >/dev/null 2>&1 || { echo "BASE_ERROR=$BASE_INPUT"; exit 0; }; BASE="$BASE_INPUT"; else BASE=main; git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE=master; fi; MB=$(git merge-base "$BASE" HEAD); git diff --stat "$MB"...HEAD`
 
 Requirements:
 - Find and follow the repository PR template if present.
+- Locate the PR template using file tools (`glob`/`read`), not shell glob patterns.
 - Analyze all commits on this branch since it diverged from base.
 - Keep output concise and concrete.
 - Do not invent tests or behavior.
@@ -33,6 +33,7 @@ Requirements:
 - Only use commits and diff since merge-base with base branch.
 - Do not include a commit-by-commit changelog in the PR body. Use commit history only as context to produce a concise summary.
 - If a PR template exists, preserve its section headings and order exactly. Do not add extra sections.
+- If any command output contains `BASE_ERROR=<name>`, stop and return exactly: `Invalid base branch: <name>`.
 - If no PR template exists, use this default body:
   - `## Summary`
   - `## Testing`

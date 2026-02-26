@@ -32,10 +32,27 @@
       "shell-config": "allow",
       "nvim-config": "allow",
       "design-doc-workflow": "allow",
-      "github-pr-template": "allow"
+      "github-pr-template": "allow",
+      "github-pr-create": "allow"
+    },
+    "external_directory": {
+      "~/code/**": "allow"
     },
     "bash": {
       "git *": "ask",
+      "git commit*": "deny",
+      "git push*": "deny",
+      "git rebase*": "deny",
+      "git reset*": "deny",
+      "git checkout*": "deny",
+      "git switch*": "deny",
+      "git merge*": "deny",
+      "git cherry-pick*": "deny",
+      "git revert*": "deny",
+      "git stash*": "deny",
+      "git tag*": "deny",
+      "git branch -d*": "deny",
+      "git branch -D*": "deny",
       "git status": "allow",
       "git diff*": "allow",
       "git log*": "allow",

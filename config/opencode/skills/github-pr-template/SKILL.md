@@ -27,7 +27,6 @@ Generate a PR title/body that matches the repository's template and current comm
 5. Return:
    - Suggested PR title
    - Filled PR body (markdown)
-   - Optional `gh pr create` command snippet
 
 ## Output requirements
 
@@ -36,7 +35,7 @@ Generate a PR title/body that matches the repository's template and current comm
 - If a section is not applicable, use `N/A` instead of leaving placeholders.
 - Preserve the template's heading names and order.
 - Do not include a commit-by-commit changelog in the PR body.
-- Return only title and body content (no preamble text, no "want me to create PR" question).
+- Do not include preamble text or follow-up questions.
 
 ## Useful commands
 

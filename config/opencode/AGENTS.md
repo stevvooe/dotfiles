@@ -22,6 +22,7 @@
 - Use `/todo` to capture ideas, tasks, or follow-ups to the project's `TODO.md` without interrupting the current work. Example: `/todo fix buffer alignment in reader.rs`. To review or reorganize the full list, use `!$EDITOR TODO.md`.
 - Use `/commit-message` to draft conventional commit messages from staged changes only. Do not include unstaged or untracked changes.
 - Use `/pr-description` to draft PR title/body from branch changes, following the repository PR template when available.
+- Use `/pr-create` to draft PR title/body and propose a copy-paste `gh pr create` command in one response.
 - When completing work that corresponds to an item in `TODO.md`, check it off by changing `- [ ]` to `- [x]`.
 
 ## Design Docs
