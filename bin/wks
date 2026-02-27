@@ -15,6 +15,7 @@ Usage:
   wks sw [name]
   wks switch [name]
   wks oc [name] [-- <opencode-args...>]
+  wks oc --new <name> [--base <ref>] [-- <opencode-args...>]
   wks rm <name> [--force]
   wks path [name]
 
@@ -22,7 +23,7 @@ Commands:
   ls                   List main + .workspaces worktrees
   new                  Create .workspaces/<name> from --base (default: HEAD)
   sw, switch           Print selected workspace path (fzf when no name)
-  oc                   Launch opencode in a workspace
+  oc                   Launch opencode in a workspace; use --new to create first
   rm                   Remove workspace worktree (refuses dirty unless --force)
   path                 Print current workspace root, or named workspace path
 
@@ -184,7 +185,8 @@ pick_workspace_path() {
 }
 
 cmd_oc() {
-  local name path
+  local name path create_new base
+  local -a opencode_args
 
   if ! command -v opencode >/dev/null 2>&1; then
     emsg "error: opencode not found in PATH"
@@ -192,17 +194,73 @@ cmd_oc() {
   fi
 
   name=
-  if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-    name=$1
-    shift
-  fi
+  create_new=0
+  base=HEAD
+  opencode_args=()
 
-  if [ -n "$name" ]; then
-    path=$(resolve_workspace_path "$name")
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --new)
+        create_new=1
+        shift
+        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+          name=$1
+          shift
+        fi
+        ;;
+      --new=*)
+        create_new=1
+        name=${1#--new=}
+        shift
+        ;;
+      --base)
+        shift
+        if [ $# -eq 0 ]; then
+          emsg "error: --base requires a ref"
+          exit 1
+        fi
+        base=$1
+        shift
+        ;;
+      --)
+        shift
+        opencode_args+=("$@")
+        break
+        ;;
+      -* )
+        opencode_args+=("$1")
+        shift
+        ;;
+      *)
+        if [ -z "$name" ]; then
+          name=$1
+        else
+          opencode_args+=("$1")
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$create_new" -eq 1 ]; then
+    if [ -z "$name" ]; then
+      emsg "error: --new requires a workspace name"
+      exit 1
+    fi
+    path=$(cmd_new "$name" --base "$base")
   else
-    path=$(pick_workspace_path)
+    if [ "$base" != "HEAD" ]; then
+      emsg "error: --base can only be used with --new"
+      exit 1
+    fi
+    if [ -n "$name" ]; then
+      path=$(resolve_workspace_path "$name")
+    else
+      path=$(pick_workspace_path)
+    fi
   fi
 
+  set -- ${opencode_args[@]+"${opencode_args[@]}"}
   exec opencode "$path" "$@"
 }
 
