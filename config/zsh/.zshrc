@@ -18,30 +18,17 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
+typeset -gU path
+path=($path)
+
 # Customize to your needs...
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
 [[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-if which nvim > /dev/null; then
-  export EDITOR=$(which nvim)
-else
-  export EDITOR=$(which vim)
-fi
-
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
-
-if [[ -z "$PYENV_ROOT" ]]; then
-  export PYENV_ROOT="$HOME/.pyenv"
-fi
-if [[ -d "$PYENV_ROOT/bin" ]] && [[ ":$PATH:" != *":$PYENV_ROOT/bin:"* ]]; then
-  export PATH="$PYENV_ROOT/bin:$PATH"
-fi
-if command -v pyenv >/dev/null 2>&1; then
-  eval "$(pyenv init -)"
-fi
 
 if command -v go >/dev/null 2>&1; then
   # Ensure private Docker modules resolve without repeatedly rewriting go env files

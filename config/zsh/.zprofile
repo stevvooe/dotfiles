@@ -42,11 +42,8 @@ fi
 if [[ -z "$PYENV_ROOT" ]]; then
   export PYENV_ROOT="$HOME/.pyenv"
 fi
-if [[ -d "$PYENV_ROOT/bin" ]]; then
-  export PATH="$PYENV_ROOT/bin:$PATH"
-fi
-if command -v pyenv >/dev/null 2>&1; then
-  eval "$(pyenv init --path)"
+if [[ -z "$PROTO_HOME" ]]; then
+  export PROTO_HOME="$HOME/.proto"
 fi
 
 #
@@ -71,9 +68,11 @@ typeset -gU cdpath fpath mailpath path
 
 # Set the list of directories that Zsh searches for programs.
 path=(
+  $PYENV_ROOT/bin(N)
+  $PROTO_HOME/{shims,bin}(N)
   $HOME/go/{,s}bin(N)
   $HOME/{,s}bin(N)
-  $HOME/.local/{,s}bin
+  $HOME/.local/{,s}bin(N)
   /usr/local/go/bin
   /usr/local/{,s}bin(N)
   /opt/{homebrew,local}/{,s}bin(N)
@@ -96,13 +95,3 @@ fi
 if [[ -z "$LESSOPEN" ]] && (( $#commands[(i)lesspipe(|.sh)] )); then
   export LESSOPEN="| /usr/bin/env $commands[(i)lesspipe(|.sh)] %s 2>&-"
 fi
-
-venvw="$(brew --prefix virtualenvwrapper)/bin/virtualenvwrapper.sh"
-[ -f "$venvw" ] && source "$venvw"
-
-# Ensure that git can use gpg for signing
-export GPG_TTY=$TTY
-
-# proto
-export PROTO_HOME="$HOME/.proto";
-export PATH="$PROTO_HOME/shims:$PROTO_HOME/bin:$PATH";
