@@ -24,6 +24,9 @@
     "github_pull_request_read": "allow",
     "github_issue_read": "allow",
     "github_actions_*": "allow",
+    "websearch": "allow",
+    "codesearch": "allow",
+    "webfetch": "allow",
     "skill": {
       "*": "ask",
       "opencode-config": "allow",
