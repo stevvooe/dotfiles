@@ -95,22 +95,43 @@ _wks_resolve_cmd() {
   [[ -n "$wks_cmd" ]] && print -r -- "$wks_cmd"
 }
 
-_wks_workspace_names() {
+_wks_workspace_rows() {
   local wks_cmd
 
   wks_cmd="$(_wks_resolve_cmd)"
   [[ -z "$wks_cmd" ]] && return
 
-  "$wks_cmd" names 2>/dev/null
+  "$wks_cmd" rows 2>/dev/null
+}
+
+_wks_workspace_names() {
+  local row
+  local -a parts names
+
+  for row in "${(@f)$(_wks_workspace_rows)}"; do
+    parts=("${(ps:\t:)row}")
+    [[ -n "${parts[1]}" ]] && names+=("${parts[1]}")
+  done
+
+  (( $#names )) && print -r -l -- $names
 }
 
 _wks_complete_workspaces() {
-  local -a workspaces
+  local row name branch state
+  local -a parts plain described
 
-  workspaces=("${(@f)$(_wks_workspace_names)}")
-  (( $#workspaces )) || return 1
+  for row in "${(@f)$(_wks_workspace_rows)}"; do
+    parts=("${(ps:\t:)row}")
+    name="${parts[1]}"
+    branch="${parts[2]}"
+    state="${parts[3]}"
+    [[ -z "$name" ]] && continue
+    plain+=("$name")
+    described+=("$name:${branch}, ${state}")
+  done
 
-  _describe -t workspaces "workspace" workspaces
+  (( $#plain )) || return 1
+  _describe -V -t workspaces "workspace" described || compadd -- $plain
 }
 
 _wks_oc_workspace_arg() {
@@ -134,7 +155,7 @@ _wks_git_refs() {
 }
 
 _wks_completion() {
-  local context state line
+  local context state line subcommand
   local -a subcommands
   typeset -A opt_args
 
@@ -142,6 +163,7 @@ _wks_completion() {
     "ls:list workspaces"
     "new:create workspace"
     "names:list workspace names"
+    "rows:list workspace metadata"
     "sw:switch workspace"
     "switch:switch workspace"
     "oc:open opencode in workspace"
@@ -159,7 +181,8 @@ _wks_completion() {
       _describe -t commands "wks command" subcommands
       ;;
     args)
-      case "${words[2]}" in
+      subcommand="${line[1]:-${words[2]}}"
+      case "$subcommand" in
         sw|switch|rm|path)
           _wks_complete_workspaces
           ;;

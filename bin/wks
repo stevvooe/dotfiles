@@ -13,6 +13,7 @@ Usage:
   wks ls
   wks new <name> [--base <ref>]
   wks names
+  wks rows
   wks sw [name]
   wks switch [name]
   wks oc [name] [-- <opencode-args...>]
@@ -24,6 +25,7 @@ Commands:
   ls                   List main + .workspaces worktrees
   new                  Create .workspaces/<name> from --base (default: HEAD)
   names                Print workspace names (for scripting/completion)
+  rows                 Print tab-delimited workspace rows (name, branch, state, path)
   sw, switch           Print selected workspace path (fzf when no name)
   oc                   Launch opencode in a workspace; use --new to create first
   rm                   Remove workspace worktree (refuses dirty unless --force)
@@ -169,6 +171,10 @@ cmd_ls() {
 
 cmd_names() {
   workspace_names
+}
+
+cmd_rows() {
+  workspace_rows
 }
 
 cmd_switch() {
@@ -420,6 +426,9 @@ main() {
       ;;
     names)
       cmd_names "$@"
+      ;;
+    rows)
+      cmd_rows "$@"
       ;;
     sw|switch)
       cmd_switch "$@"
