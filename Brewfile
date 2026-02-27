@@ -53,6 +53,6 @@ cask "ghostty"
 cask "aws-vault-binary"
 
 tap "anomalyco/tap"
-brew "opencode"
+brew "anomalyco/tap/opencode"
 
 go "golang.org/x/tools/gopls"
