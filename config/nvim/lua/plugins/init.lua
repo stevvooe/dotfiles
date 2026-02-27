@@ -16,49 +16,12 @@ return {
   { import = "plugins.todo-comments" },
   { import = "plugins.oil" },
   { import = "plugins.harpoon" },
-  {
-    "nvim-tree/nvim-web-devicons",
-    config = function()
-      require("nvim-web-devicons").setup()
-    end,
-  },
-  {
-    "nvim-tree/nvim-tree.lua",
-    cmd = { "NvimTreeToggle", "NvimTreeFocus" },
-    config = function()
-      require("nvim-tree").setup()
-    end,
-  },
-  {
-    "github/copilot.vim",
-    cmd = "Copilot",
-    config = function()
-      vim.cmd("Copilot setup")
-    end,
-  },
-  {
-    "tpope/vim-fugitive",
-    cmd = "Git"
-  },
-  { "tpope/vim-sleuth" },
-  {
-    "mbbill/undotree",
-    keys = {
-      { "<leader>u", "<cmd>UndotreeToggle<cr>", desc = "Toggle Undotree" },
-    },
-  },
-  {
-    "j-hui/fidget.nvim",
-    event = "LspAttach",
-    opts = {},
-  },
-  {
-    "greggh/claude-code.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-    },
-    config = function()
-      require("claude-code").setup()
-    end
-  },
+  { import = "plugins.devicons" },
+  { import = "plugins.nvim-tree" },
+  { import = "plugins.copilot" },
+  { import = "plugins.fugitive" },
+  { import = "plugins.sleuth" },
+  { import = "plugins.undotree" },
+  { import = "plugins.fidget" },
+  { import = "plugins.claude-code" },
 }

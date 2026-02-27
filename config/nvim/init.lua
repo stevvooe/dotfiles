@@ -1,5 +1,9 @@
 vim.g.mapleader = " "
 
+require("options")
+require("mappings")
+require("diagnostics")
+
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.uv.fs_stat(lazypath) then
   vim.fn.system({
@@ -14,8 +18,5 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup("plugins")
-require("options")
-require("mappings")
-require("diagnostics")
 
 vim.g.rustfmt_autosave = 1

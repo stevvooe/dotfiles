@@ -4,19 +4,10 @@ return {
     dependencies = { "nvim-lua/plenary.nvim" },
     cmd = { "DiffviewOpen", "DiffviewFileHistory", "DiffviewClose" },
     keys = {
-      -- Open Diffview for working tree vs HEAD
       { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diffview: Open" },
-
-      -- Compare current branch against origin/main (change to origin/master if needed)
       { "<leader>gD", "<cmd>DiffviewOpen origin/main...HEAD<cr>", desc = "Diffview: origin/main...HEAD" },
-
-      -- File history for current file
       { "<leader>gf", "<cmd>DiffviewFileHistory %<cr>", desc = "Diffview: File History (current file)" },
-
-      -- Repo history (all files)
       { "<leader>gF", "<cmd>DiffviewFileHistory<cr>", desc = "Diffview: Repo History" },
-
-      -- Close
       { "<leader>gq", "<cmd>DiffviewClose<cr>", desc = "Diffview: Close" },
     },
     opts = function()
@@ -24,8 +15,6 @@ return {
 
       return {
         enhanced_diff_hl = true,
-
-        -- If you want tighter, more "vim-like" quit keys inside diffview:
         keymaps = {
           view = {
             { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Close Diffview" } },
