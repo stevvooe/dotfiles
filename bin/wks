@@ -12,6 +12,7 @@ Usage:
   wks                  # interactive switch (fzf)
   wks ls
   wks new <name> [--base <ref>]
+  wks names
   wks sw [name]
   wks switch [name]
   wks oc [name] [-- <opencode-args...>]
@@ -22,6 +23,7 @@ Usage:
 Commands:
   ls                   List main + .workspaces worktrees
   new                  Create .workspaces/<name> from --base (default: HEAD)
+  names                Print workspace names (for scripting/completion)
   sw, switch           Print selected workspace path (fzf when no name)
   oc                   Launch opencode in a workspace; use --new to create first
   rm                   Remove workspace worktree (refuses dirty unless --force)
@@ -30,6 +32,7 @@ Commands:
 Notes:
   - Workspaces live under <main checkout>/.workspaces
   - New workspaces create branch wks/<name>
+  - wks oc defaults to edit permission allow unless OPENCODE_PERMISSION is already set
   - Use a shell wrapper to cd after switch output
 EOF
 }
@@ -106,6 +109,14 @@ workspace_rows() {
   fi
 }
 
+workspace_names() {
+  local name branch state path
+
+  workspace_rows | while IFS=$'\t' read -r name branch state path; do
+    printf '%s\n' "$name"
+  done
+}
+
 resolve_workspace_path() {
   local name=$1
   local path
@@ -154,6 +165,10 @@ cmd_ls() {
     fi
     printf '%s %-16s %-24s %-6s %s\n' "$marker" "$name" "$branch" "$state" "$path"
   done
+}
+
+cmd_names() {
+  workspace_names
 }
 
 cmd_switch() {
@@ -261,6 +276,11 @@ cmd_oc() {
   fi
 
   set -- ${opencode_args[@]+"${opencode_args[@]}"}
+
+  if [ -z "${OPENCODE_PERMISSION:-}" ]; then
+    exec env OPENCODE_PERMISSION='{"edit":"allow"}' opencode "$path" "$@"
+  fi
+
   exec opencode "$path" "$@"
 }
 
@@ -397,6 +417,9 @@ main() {
       ;;
     new)
       cmd_new "$@"
+      ;;
+    names)
+      cmd_names "$@"
       ;;
     sw|switch)
       cmd_switch "$@"
