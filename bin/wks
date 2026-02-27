@@ -1,0 +1,363 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+emsg() {
+  printf '%s\n' "$*" >&2
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  wks                  # interactive switch (fzf)
+  wks ls
+  wks new <name> [--base <ref>]
+  wks sw [name]
+  wks switch [name]
+  wks oc [name] [-- <opencode-args...>]
+  wks rm <name> [--force]
+  wks path [name]
+
+Commands:
+  ls                   List main + .workspaces worktrees
+  new                  Create .workspaces/<name> from --base (default: HEAD)
+  sw, switch           Print selected workspace path (fzf when no name)
+  oc                   Launch opencode in a workspace
+  rm                   Remove workspace worktree (refuses dirty unless --force)
+  path                 Print current workspace root, or named workspace path
+
+Notes:
+  - Workspaces live under <main checkout>/.workspaces
+  - New workspaces create branch wks/<name>
+  - Use a shell wrapper to cd after switch output
+EOF
+}
+
+require_git_repo() {
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    emsg "error: not inside a git repository"
+    exit 1
+  fi
+}
+
+init_repo_paths() {
+  git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+  main_root=$(cd "$git_common_dir/.." && pwd -P)
+  workspaces_dir="$main_root/.workspaces"
+  current_root=$(git rev-parse --show-toplevel)
+}
+
+ensure_local_exclude() {
+  local exclude_file
+
+  exclude_file=$(git rev-parse --path-format=absolute --git-path info/exclude)
+  if [ ! -f "$exclude_file" ]; then
+    touch "$exclude_file"
+  fi
+
+  if ! grep -qxF '/.workspaces/' "$exclude_file"; then
+    printf '\n/.workspaces/\n' >>"$exclude_file"
+  fi
+}
+
+branch_for_path() {
+  local path=$1
+  local branch
+
+  if branch=$(git -C "$path" symbolic-ref --short -q HEAD 2>/dev/null); then
+    printf '%s\n' "$branch"
+    return
+  fi
+
+  branch=$(git -C "$path" rev-parse --short HEAD)
+  printf 'detached@%s\n' "$branch"
+}
+
+state_for_path() {
+  local path=$1
+
+  if [ -n "$(git -C "$path" status --porcelain --ignore-submodules=dirty)" ]; then
+    printf 'dirty\n'
+  else
+    printf 'clean\n'
+  fi
+}
+
+workspace_rows() {
+  local path name branch state
+
+  path=$main_root
+  name=main
+  branch=$(branch_for_path "$path")
+  state=$(state_for_path "$path")
+  printf '%s\t%s\t%s\t%s\n' "$name" "$branch" "$state" "$path"
+
+  if [ -d "$workspaces_dir" ]; then
+    for path in "$workspaces_dir"/*; do
+      [ -d "$path" ] || continue
+      git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+
+      name=$(basename "$path")
+      branch=$(branch_for_path "$path")
+      state=$(state_for_path "$path")
+      printf '%s\t%s\t%s\t%s\n' "$name" "$branch" "$state" "$path"
+    done
+  fi
+}
+
+resolve_workspace_path() {
+  local name=$1
+  local path
+
+  if [ "$name" = "main" ]; then
+    printf '%s\n' "$main_root"
+    return 0
+  fi
+
+  path="$workspaces_dir/$name"
+  if [ -d "$path" ] && git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  emsg "error: workspace '$name' not found"
+  return 1
+}
+
+validate_workspace_name() {
+  local name=$1
+
+  if [ -z "$name" ]; then
+    emsg "error: workspace name cannot be empty"
+    exit 1
+  fi
+
+  if [ "$name" = "main" ]; then
+    emsg "error: 'main' is reserved"
+    exit 1
+  fi
+
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    emsg "error: workspace name must match [A-Za-z0-9._-]+"
+    exit 1
+  fi
+}
+
+cmd_ls() {
+  local name branch state path marker
+
+  workspace_rows | while IFS=$'\t' read -r name branch state path; do
+    marker=' '
+    if [ "$path" = "$current_root" ]; then
+      marker='*'
+    fi
+    printf '%s %-16s %-24s %-6s %s\n' "$marker" "$name" "$branch" "$state" "$path"
+  done
+}
+
+cmd_switch() {
+  local name=${1:-}
+
+  if [ -n "$name" ]; then
+    resolve_workspace_path "$name"
+    return 0
+  fi
+
+  pick_workspace_path
+}
+
+pick_workspace_path() {
+  local selected path
+
+  if ! command -v fzf >/dev/null 2>&1; then
+    emsg "error: fzf is required for interactive switching"
+    exit 1
+  fi
+
+  selected=$(workspace_rows | fzf --prompt='workspace> ' --height=50% --layout=reverse --delimiter=$'\t' --with-nth=1,2,3)
+  if [ -z "$selected" ]; then
+    exit 1
+  fi
+
+  path=${selected##*$'\t'}
+  printf '%s\n' "$path"
+}
+
+cmd_oc() {
+  local name path
+
+  if ! command -v opencode >/dev/null 2>&1; then
+    emsg "error: opencode not found in PATH"
+    exit 1
+  fi
+
+  name=
+  if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+    name=$1
+    shift
+  fi
+
+  if [ -n "$name" ]; then
+    path=$(resolve_workspace_path "$name")
+  else
+    path=$(pick_workspace_path)
+  fi
+
+  exec opencode "$path" "$@"
+}
+
+cmd_new() {
+  local name base branch target
+
+  if [ $# -lt 1 ]; then
+    emsg "error: missing workspace name"
+    usage
+    exit 1
+  fi
+
+  name=$1
+  shift
+  base=HEAD
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base)
+        shift
+        if [ $# -eq 0 ]; then
+          emsg "error: --base requires a ref"
+          exit 1
+        fi
+        base=$1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        emsg "error: unknown option '$1'"
+        exit 1
+        ;;
+    esac
+  done
+
+  validate_workspace_name "$name"
+  target="$workspaces_dir/$name"
+  branch="wks/$name"
+
+  if [ -e "$target" ]; then
+    emsg "error: workspace path already exists: $target"
+    exit 1
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    emsg "error: branch already exists: $branch"
+    exit 1
+  fi
+
+  ensure_local_exclude
+  mkdir -p "$workspaces_dir"
+  git worktree add -b "$branch" "$target" "$base" >/dev/null
+  printf '%s\n' "$target"
+}
+
+cmd_rm() {
+  local name force path
+
+  if [ $# -lt 1 ]; then
+    emsg "error: missing workspace name"
+    usage
+    exit 1
+  fi
+
+  name=$1
+  shift
+  force=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -f|--force)
+        force=1
+        shift
+        ;;
+      *)
+        emsg "error: unknown option '$1'"
+        exit 1
+        ;;
+    esac
+  done
+
+  path=$(resolve_workspace_path "$name")
+
+  if [ "$path" = "$main_root" ]; then
+    emsg "error: cannot remove main workspace"
+    exit 1
+  fi
+
+  if [ $force -eq 0 ] && [ -n "$(git -C "$path" status --porcelain --ignore-submodules=dirty)" ]; then
+    emsg "error: workspace has uncommitted changes (use --force to remove)"
+    exit 1
+  fi
+
+  if [ $force -eq 1 ]; then
+    git worktree remove --force "$path"
+  else
+    git worktree remove "$path"
+  fi
+
+  git worktree prune >/dev/null 2>&1 || true
+}
+
+cmd_path() {
+  local name=${1:-}
+
+  if [ -z "$name" ]; then
+    printf '%s\n' "$current_root"
+    return
+  fi
+
+  resolve_workspace_path "$name"
+}
+
+main() {
+  local cmd
+
+  require_git_repo
+  init_repo_paths
+
+  cmd=${1:-switch}
+  if [ $# -gt 0 ]; then
+    shift
+  fi
+
+  case "$cmd" in
+    -h|--help|help)
+      usage
+      ;;
+    ls)
+      cmd_ls "$@"
+      ;;
+    new)
+      cmd_new "$@"
+      ;;
+    sw|switch)
+      cmd_switch "$@"
+      ;;
+    oc)
+      cmd_oc "$@"
+      ;;
+    rm)
+      cmd_rm "$@"
+      ;;
+    path)
+      cmd_path "$@"
+      ;;
+    *)
+      emsg "error: unknown command '$cmd'"
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

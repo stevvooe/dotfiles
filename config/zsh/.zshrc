@@ -62,3 +62,25 @@ alias la="eza -la --git"
 
 # zoxide
 eval "$(zoxide init zsh)"
+
+wks() {
+  local wks_cmd dest
+
+  wks_cmd="$(whence -p wks 2>/dev/null || true)"
+  if [[ -z "$wks_cmd" && -x "$HOME/.dotfiles/bin/wks" ]]; then
+    wks_cmd="$HOME/.dotfiles/bin/wks"
+  fi
+
+  if [[ -z "$wks_cmd" ]]; then
+    print -u2 "wks: command not found: run 'make link' in ~/.dotfiles or add ~/.dotfiles/bin to PATH"
+    return 127
+  fi
+
+  if (( $# == 0 )) || [[ "$1" == "sw" ]] || [[ "$1" == "switch" ]]; then
+    dest="$($wks_cmd "$@")" || return $?
+    [[ -n "$dest" ]] && cd "$dest"
+    return 0
+  fi
+
+  "$wks_cmd" "$@"
+}
