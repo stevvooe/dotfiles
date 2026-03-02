@@ -160,6 +160,24 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 - Be deliberate about `Send + Sync` bounds. Don't blanket-require them unless the design demands it.
 - Don't abuse `Deref` for inheritance-like patterns. It's for smart pointer types.
 
+### Module Structure
+
+- Organize modules by domain concepts, not by framework/layer names.
+- Keep `lib.rs` thin: declare modules, re-export the stable API, and avoid business logic.
+- Default to private items. Expose the smallest possible surface (`pub(crate)` over `pub` when possible).
+- Keep one responsibility per module. Split files when a module starts carrying unrelated concerns.
+- Prefer explicit module paths over large `prelude` exports unless ergonomics clearly improve.
+- Put unit tests near each module. Use `tests/` for integration tests across module boundaries.
+
+### Configuration & Settings
+
+- Parse configuration once at startup, validate it, then pass typed settings through constructors.
+- Model settings with strong types (`Duration`, `NonZeroUsize`, enums, and newtypes for IDs/URLs).
+- Keep parsing/merging in a `config` module and keep runtime logic free of env/file access.
+- Use `Default` only for safe non-secret defaults. Fail fast on missing required settings.
+- Avoid global mutable configuration. Prefer explicit dependency injection via function/struct parameters.
+- For env/file/CLI config, define precedence explicitly and keep merge logic in one place.
+
 ### Memory & Performance
 
 - Reduce buffer copying as much as possible. This is why we are using Rust. `Bytes`/`BytesMut` is a good tool for this but not always the right one.
@@ -169,10 +187,13 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 
 ### Error Handling
 
-- Use `thiserror` for library error types, `anyhow` for application-level errors. Don't mix them.
+- Library crates should return typed errors (`thiserror`), not `anyhow::Error`.
+- Binary/application crates can use `anyhow` at boundaries (CLI handlers and entrypoints) for reporting.
 - Don't use `unwrap()`. Propagate errors with `?`, or use `expect()` with a message that explains the invariant if a panic is truly the right choice.
 - Add context to errors. Bare `?` with no `.context()` or wrapping loses information.
-- Make error variants specific. A single `Error::Unknown(String)` is useless for callers.
+- Make error variants specific and actionable. A single `Error::Unknown(String)` is useless for callers.
+- Use `#[from]` for transparent conversions when semantics match; wrap with context when meaning changes.
+- Avoid leaking dependency-specific errors in public APIs unless that dependency is part of the contract.
 
 ### Architecture
 

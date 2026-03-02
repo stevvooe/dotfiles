@@ -49,6 +49,20 @@ if command -v docker >/dev/null 2>&1; then
   fi
   fpath=("$docker_completion_dir" $fpath)
 fi
+# Cache Rust/Cargo completions locally and load them via fpath.
+rust_completion_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions"
+if command -v rustup >/dev/null 2>&1; then
+  mkdir -p "$rust_completion_dir"
+  for _rc_pair in "cargo:_cargo" "rustup:_rustup"; do
+    _rc_cmd="${_rc_pair%%:*}"
+    _rc_file="$rust_completion_dir/${_rc_pair##*:}"
+    if [[ ! -s "$_rc_file" || "$(command -v rustup)" -nt "$_rc_file" ]]; then
+      rustup completions zsh "$_rc_cmd" >| "$_rc_file" 2>/dev/null
+    fi
+  done
+  unset _rc_pair _rc_cmd _rc_file
+  fpath=("$rust_completion_dir" $fpath)
+fi
 autoload -Uz compinit
 compinit
 
