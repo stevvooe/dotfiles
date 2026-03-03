@@ -15,7 +15,15 @@ fi
 
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
+  _prezto_aliases_state="$options[aliases]"
+  setopt no_aliases
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
+  if [[ "$_prezto_aliases_state" == on ]]; then
+    setopt aliases
+  else
+    setopt no_aliases
+  fi
+  unset _prezto_aliases_state
 fi
 
 typeset -gU path
