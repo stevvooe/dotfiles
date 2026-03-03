@@ -94,7 +94,7 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 - The bigger the interface, the weaker the abstraction. Keep interfaces small.
 - Exported names should be semantically meaningful, not mechanical. For example, `event.Allow()` rather than exposing the internal fd to the caller.
 - Prefer methods on the concrete type over standalone functions when there's clear ownership.
-- Functions should return concrete types, not interfaces. Accept interfaces, return structs.
+- Functions should return concrete types, not interfaces. Accept interfaces, return structs. Exception: return `error` for failure paths.
 - Use `t.Cleanup` instead of deferred cleanup in tests.
 - Use iterators (`iter.Seq`) over channels when the consumer is synchronous and there's no need for concurrent producers.
 - Internal types and helper functions should be unexported unless there's a reason to expose them.
@@ -102,7 +102,9 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 ### Error Handling
 
 - Always check error return values. Fix errcheck lint findings.
+- Return `error` from any path that can fail. Keep concrete error details in wrapped errors, not function signatures.
 - Wrap errors with context using `fmt.Errorf("doing something: %w", err)`. Bare `return err` loses context.
+- On Go 1.26+, prefer `AsType[...]` to extract typed error conditions at call sites. On older Go versions, use `errors.As`.
 - Handle `io.EOF` gracefully. Don't log it as an error during normal read operations.
 - Validate preconditions early. If mismatched parameters would cause silent corruption, panic with a clear message.
 
