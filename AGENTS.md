@@ -44,4 +44,5 @@
 - Do not create manual symlinks. Use stow via `make link`.
 - Keep `Brewfile` entries alphabetized within each section.
 - Do not edit machine-specific git include files: `config/git/signingkey.inc`, `config/git/email.inc`.
+- Do not use Python (or one-off scripts) to read/write/edit files when applying repo changes. Use patch/diff-based edits via the editing tools so changes stay reviewable.
 - Keep changes minimal and scoped; avoid unrelated cleanup.
