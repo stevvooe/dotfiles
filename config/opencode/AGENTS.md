@@ -80,6 +80,11 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 - Keep APIs consistent. If related types exist (e.g., Request and Response), they should support the same set of operations. Don't implement `Write` on one and forget the other.
 - Define objects with clear boundaries and explicit relationships. Don't rely on naming conventions or implicit knowledge to convey how types relate.
 - Proactively identify ways to simplify, remove clutter, or promote implicit concepts into explicit types or interfaces.
+- Never reach into a module's internals. Use its public API. If the API doesn't support what you need, extend the API — don't bypass it.
+- Don't access struct fields directly when methods exist for that purpose. The fields are an implementation detail.
+- Respect existing abstraction boundaries. If a type hides its internals behind methods, keep them hidden. Don't expose fields or internals to solve a local problem.
+- If an abstraction is getting in the way, fix the abstraction. Don't work around it by breaking encapsulation.
+- If you find yourself needing access to internals or changing a function signature, stop. That's a design decision, not an implementation detail. Explain what you need, why the current boundary doesn't support it, and propose a design change before writing code.
 
 ## Go
 
