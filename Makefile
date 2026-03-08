@@ -4,7 +4,6 @@ export STOW_DIR = $(DOTFILES)
 export XDG_CONFIG_HOME = $(HOME)/.config
 
 all: \
-	submodules \
 	brew \
 	link \
 	ssh-setup \
@@ -15,10 +14,6 @@ all: \
 	rust-setup \
 	npm-setup \
 	nvim-setup
-
-submodules:
-	git submodule update --init --recursive
-
 brew:
 	which brew || ( \
 		/bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
