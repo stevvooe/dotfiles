@@ -1,0 +1,125 @@
+palette = "catppuccin_macchiato"
+add_newline = false
+
+# Lean two-line prompt.
+# Line 1: os + dir + git | right-aligned: cmd duration, time
+# Line 2: ❯ character
+
+format = """
+$os\
+$directory\
+$git_branch\
+$git_status\
+$line_break\
+$character"""
+
+right_format = """$rust$golang$python$cmd_duration$time"""
+
+[directory]
+format = "[$path]($style)[$read_only]($read_only_style) "
+style = "bold lavender"
+truncation_length = 5
+truncate_to_repo = false
+fish_style_pwd_dir_length = 0
+read_only = " \U000f033e"
+
+[git_branch]
+symbol = "\uf126"
+format = "[on](overlay1) [$symbol $branch(:$remote_branch)]($style) "
+style = "mauve"
+truncation_length = 32
+
+[git_status]
+format = "($stashed$ahead_behind$staged$modified$untracked$conflicted)"
+stashed = "[*$count](mauve) "
+ahead = "[$count\u2191](mauve)"
+behind = "[$count\u2193](mauve)"
+diverged = "[$ahead_count\u2191$behind_count\u2193](mauve)"
+staged = "[+$count](yellow) "
+modified = "[!$count](yellow) "
+untracked = "[?$count](blue)"
+conflicted = "[~$count](red) "
+renamed = "[\u00bb$count](yellow) "
+deleted = "[-$count](red) "
+
+[cmd_duration]
+min_time = 3000
+format = "[\uf252 $duration]($style) "
+style = "yellow"
+
+[time]
+disabled = false
+format = "[at](overlay1) [\uf017 $time]($style)"
+style = "overlay1"
+time_format = "%H:%M:%S"
+
+[character]
+success_symbol = "[\u276f](bold lavender)"
+error_symbol = "[\u276f](bold red)"
+
+[rust]
+symbol = "🦀 "
+style = "peach"
+format = "[$symbol($version )]($style)"
+
+[golang]
+symbol = "🐹 "
+style = "sky"
+format = "[$symbol($version )]($style)"
+
+[python]
+symbol = "🐍 "
+style = "yellow"
+format = "[$symbol($version )]($style)"
+
+[status]
+disabled = false
+
+[aws]
+disabled = true
+
+[gcloud]
+disabled = true
+
+[azure]
+disabled = true
+
+[kubernetes]
+disabled = true
+
+[os]
+disabled = false
+style = "text"
+
+[os.symbols]
+Macos = "\uf179 "
+Linux = "\uf17c "
+Arch = "\uf303 "
+
+[palettes.catppuccin_macchiato]
+rosewater = "#f4dbd6"
+flamingo = "#f0c6c6"
+pink = "#f5bde6"
+mauve = "#c6a0f6"
+red = "#ed8796"
+maroon = "#ee99a0"
+peach = "#f5a97f"
+yellow = "#eed49f"
+green = "#a6da95"
+teal = "#8bd5ca"
+sky = "#91d7e3"
+sapphire = "#7dc4e4"
+blue = "#8aadf4"
+lavender = "#b7bdf8"
+text = "#cad3f5"
+subtext1 = "#b8c0e0"
+subtext0 = "#a5adcb"
+overlay2 = "#939ab7"
+overlay1 = "#8087a2"
+overlay0 = "#6e738d"
+surface2 = "#5b6078"
+surface1 = "#494d64"
+surface0 = "#363a4f"
+base = "#24273a"
+mantle = "#1e2030"
+crust = "#181926"
