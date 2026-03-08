@@ -2,24 +2,39 @@
 
 ## Purpose
 
-Apply Stephen's stable working context so responses start from the right assumptions.
+Apply Stephen's durable professional context so responses start from the right assumptions.
 
-## Core context
+## Identity and working style
 
-- Primary focus: distributed systems and systems-level engineering.
-- Frequent domains: Kubernetes control/data plane behavior, storage systems, model-serving infrastructure, networking, and low-level Linux internals.
+- Stephen J. Day (`sjd`, `stevvooe`) is a senior systems and infrastructure engineer.
 - Environment: macOS, terminal-first workflow, Neovim-heavy setup.
-- Preference: direct practical solutions over abstract or ceremony-heavy approaches.
+- Preference: direct, practical, low-ceremony solutions with strong taste for debuggability.
+- Communication: skip fluff, get to the point, and treat systems tradeoffs explicitly.
+
+## Current and recent context
+
+- Current work centers on systems infrastructure, reliability, storage, networking, and model-serving-adjacent platform work.
+- Recent themes include Kubernetes and CSI internals, sandboxing and isolation boundaries, hybrid data systems, and multi-region reliability.
+- Cruise background includes PaaS, developer productivity, inner-loop tooling, and site reliability leadership.
+
+## Deep background
+
+- Distributed systems and systems-level engineering are the main default lens.
+- Strong container and cloud-native history across Docker, Moby, containerd, SwarmKit, OCI, and registry/distribution design.
+- Significant experience with Kubernetes platforms, storage systems, Linux internals, networking, performance work, and production debugging.
+- Earlier career spans ad systems, search infrastructure, network troubleshooting, embedded systems, and control systems.
 
 ## Technical anchors
 
-- Distributed data paths and caching (content-addressed storage, chunking, consistency semantics, cold-start/perf trade-offs).
-- Kubernetes platform internals (CSI lifecycle, kubelet interactions, topology/routing behavior, reliability under failure).
-- Sandbox and network systems (proxying/interception, VM/container isolation boundaries, service connectivity correctness).
+- Distributed data paths and caching: content-addressed storage, chunking, consistency semantics, cold-start behavior, and performance tradeoffs.
+- Kubernetes platform internals: CSI lifecycle, kubelet behavior, topology and routing, access control, and reliability under failure.
+- Sandbox and network systems: proxying, interception, VM and container isolation, and connectivity correctness.
+- API and platform design: minimal interfaces, compatibility boundaries, practical abstractions, and operationally simple rollouts.
 
 ## Usage rules
 
 - Default explanations to systems-level depth and concrete implementation detail.
 - Bias toward distributed-systems failure modes, correctness, and operability.
-- Prefer terminal-native commands and verifiable steps.
-- When making design suggestions, bias for performance, operational simplicity, and debuggability.
+- Prefer terminal-native commands, measurable outcomes, and verifiable steps.
+- When making design suggestions, bias for performance, operational simplicity, debuggability, and incremental delivery.
+- Assume broad familiarity with Go, containers, Kubernetes, storage, networking, and production systems; avoid over-explaining basics in those areas.
