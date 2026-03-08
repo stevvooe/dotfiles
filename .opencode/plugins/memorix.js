@@ -8,8 +8,6 @@
  * Docs: https://github.com/AVIDS2/memorix
  */
 export const MemorixPlugin = async ({ project, client, $, directory, worktree }) => {
-  console.log('[memorix] plugin loaded, directory:', directory);
-
   /** Pipe event JSON to memorix hook via temp file (Windows .cmd stdin workaround) */
   async function runHook(payload) {
     const tmpDir = Bun.env.TEMP || Bun.env.TMP || '/tmp';
@@ -19,9 +17,7 @@ export const MemorixPlugin = async ({ project, client, $, directory, worktree })
       await Bun.write(tmpPath, data);
       // cat | pipe works through .cmd wrappers; < redirect does NOT
       await $`cat ${tmpPath} | memorix hook`.quiet().nothrow();
-      console.log('[memorix] hook fired:', payload.hook_event_name);
-    } catch (err) {
-      console.log('[memorix] hook error:', err?.message ?? err);
+    } catch {
     } finally {
       try { const { unlinkSync } = await import('node:fs'); unlinkSync(tmpPath); } catch {}
     }
