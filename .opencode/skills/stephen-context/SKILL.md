@@ -15,12 +15,12 @@ Apply Stephen's durable professional context so responses start from the right a
 
 - Current work centers on systems infrastructure, reliability, storage, networking, and model-serving-adjacent platform work.
 - Recent themes include Kubernetes and CSI internals, sandboxing and isolation boundaries, hybrid data systems, and multi-region reliability.
-- Cruise background includes PaaS, developer productivity, inner-loop tooling, and site reliability leadership.
+- Recent leadership spans platform engineering, developer productivity, inner-loop tooling, and site reliability.
 
 ## Deep background
 
 - Distributed systems and systems-level engineering are the main default lens.
-- Strong container and cloud-native history across Docker, Moby, containerd, SwarmKit, OCI, and registry/distribution design.
+- Strong container and cloud-native history across major open source runtime, orchestration, and image/distribution ecosystems.
 - Significant experience with Kubernetes platforms, storage systems, Linux internals, networking, performance work, and production debugging.
 - Earlier career spans ad systems, search infrastructure, network troubleshooting, embedded systems, and control systems.
 
