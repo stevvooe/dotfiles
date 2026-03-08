@@ -47,6 +47,7 @@
       "brewfile-maintenance": "allow",
       "shell-config": "allow",
       "nvim-config": "allow",
+      "github-actions-ci-debug": "allow",
       "design-doc-workflow": "allow",
       "github-pr-template": "allow",
       "github-pr-create": "allow"

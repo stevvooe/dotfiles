@@ -29,6 +29,7 @@
 ## Skills
 
 - For OpenCode setup in this repo (`config/opencode/*`), load `opencode-config`.
+- For broken GitHub Actions CI triage, load `github-actions-ci-debug`.
 - For stow/layout changes, load `dotfiles-stow`.
 - For `Brewfile` edits, load `brewfile-maintenance`.
 - For shell setup (`config/zsh`, `runcoms`), load `shell-config`.
