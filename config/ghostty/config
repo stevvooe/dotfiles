@@ -51,7 +51,7 @@
 macos-icon = retro
 
 font-thicken = true
-font-thicken-strength = 100
+font-thicken-strength = 50
 
 background-opacity = 0.9
 background-blur = true
