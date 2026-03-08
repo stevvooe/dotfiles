@@ -10,6 +10,10 @@
     "github": {
       "type": "local",
       "command": ["sh", "-c", "GITHUB_PERSONAL_ACCESS_TOKEN=$(gh auth token) exec github-mcp-server --read-only --toolsets repos,issues,pull_requests,actions stdio"]
+    },
+    "memorix": {
+      "type": "local",
+      "command": ["memorix", "serve"]
     }
   },
   "permission": {
@@ -26,6 +30,16 @@
     "websearch": "allow",
     "codesearch": "allow",
     "webfetch": "allow",
+    "memorix_*": "allow",
+    "create_entities": "allow",
+    "create_relations": "allow",
+    "add_observations": "allow",
+    "delete_entities": "allow",
+    "delete_observations": "allow",
+    "delete_relations": "allow",
+    "search_nodes": "allow",
+    "open_nodes": "allow",
+    "read_graph": "allow",
     "skill": {
       "*": "ask",
       "opencode-config": "allow",

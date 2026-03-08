@@ -214,3 +214,16 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 - Use `criterion` for benchmarks. Separate setup from measured work.
 - Use `#[cfg(test)]` modules for test utilities. Don't pollute the public API with test helpers.
 - Test the public API, not internals. If you need to test internals, that's a sign the module boundary is wrong.
+
+## Memorix
+
+Use Memorix memory tools to maintain persistent context across sessions.
+
+- On session start: call `memorix_session_start`, then `memorix_search` for context relevant to the user's first message.
+- Store with appropriate types: `decision` for architecture choices, `problem-solution` for bugs, `gotcha` for surprises, `what-changed` for config/feature changes, `trade-off` for evaluated alternatives. Skip trivial actions.
+- Use `topicKey` for evolving topics to update rather than duplicate. Use `memorix_suggest_topic_key` to generate keys.
+- Include reasoning ("chose X because Y"), file paths, and related concepts in every observation.
+- For multi-session work, use the `progress` parameter to track feature name, status (`in-progress`, `completed`, `blocked`), and completion percentage.
+- Resolve completed tasks and fixed bugs with `memorix_resolve` so they stop polluting search.
+- On session end: store a decision-chain summary with `topicKey: "session/latest-summary"`. Structure: goal, key decisions with reasoning, what changed (file paths), current state, next steps.
+- Dedup is automatic on store. Use `memorix_deduplicate` only if duplicates pile up.
