@@ -29,6 +29,10 @@
 ## Skills
 
 - For OpenCode setup in this repo (`config/opencode/*`), load `opencode-config`.
+- For proactive memory behavior and summaries, load `memorix-proactive`.
+- For distributed systems and systems-level work defaults, load `stephen-context`.
+- For distributed systems design/debug/consistency work, load `distributed-systems`.
+- For cloud/neo-cloud machine shape comparisons, load `cloud-instance-shapes`.
 - For broken GitHub Actions CI triage, load `github-actions-ci-debug`.
 - For stow/layout changes, load `dotfiles-stow`.
 - For `Brewfile` edits, load `brewfile-maintenance`.

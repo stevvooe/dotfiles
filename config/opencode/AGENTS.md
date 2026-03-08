@@ -57,23 +57,39 @@
 
 Use subagents to delegate specialized work. Invoke them with `@agent-name` or let the Build agent delegate automatically based on context.
 
-- `@code-reviewer` — after completing a feature or fix, or when reviewing someone else's changes
-- `@architect` — before starting a feature, when the design is unclear, or when module boundaries need rethinking
-- `@design` — create/update design docs (`DESIGN.md`, `*_PLAN.md`, `docs/design/*.md`) and keep them in sync with implementation
-- `@debug` — when a bug needs root cause analysis rather than guessing at fixes
-- `@security-auditor` — before merging code that handles auth, user input, secrets, or `unsafe`
-- `@perf-review` — when code touches hot paths, I/O, or allocation-heavy areas. Analyze first, don't guess.
-- `@perf-optimize` — after `@perf-review` identifies concrete bottlenecks. Implements and benchmarks the fix.
-- `@test-writer` — when adding test coverage for existing or new code
-- `@refactor` — when restructuring code without changing behavior. Runs tests after each change.
-- `@migration` — for dependency upgrades and API migrations. Plans before executing.
-- `@docs-writer` — when doc comments or package-level documentation need writing or updating
-- `@api-designer` — when designing or reviewing protobuf, gRPC, REST, or inter-service API schemas
-- `@devops` — for Dockerfiles, CI pipelines, and build configuration
+Default delegation policy (proactive):
+
+- For non-trivial work, run `@design` before implementation.
+- If module boundaries or API shape are unclear, run `@architect` before coding.
+- After meaningful code changes, run `@code-reviewer` before closing.
+- If auth, secrets, user input, or `unsafe` code is involved, run `@security-auditor`.
+- If the bug cause is unclear, run `@debug` before proposing fixes.
+- For hot paths, I/O, or allocation-heavy areas, run `@perf-review` first; run `@perf-optimize` only after concrete findings.
+- When behavior changes and tests are missing or weak, run `@test-writer`.
+- For dependency upgrades or API migrations, run `@migration`.
+- If implementation diverges from design docs, run `@design` to sync docs before continuing code changes.
+
+- `@code-reviewer` — reviews correctness, consistency, and convention adherence.
+- `@architect` — analyzes module boundaries, API shape, and dependency choices.
+- `@design` — creates/updates design docs and keeps them in sync with implementation.
+- `@debug` — investigates unclear failures and root causes.
+- `@security-auditor` — audits auth/input/secret/unsafe-related risk.
+- `@perf-review` — identifies bottlenecks and inefficiencies.
+- `@perf-optimize` — implements optimizations based on concrete perf findings.
+- `@test-writer` — adds and improves test coverage.
+- `@refactor` — restructures code without changing behavior.
+- `@migration` — handles dependency and API migrations.
+- `@docs-writer` — writes/updates developer and API documentation.
+- `@api-designer` — designs/reviews protobuf, gRPC, REST, and inter-service schemas.
+- `@devops` — works on Dockerfiles, CI pipelines, and build/deploy config.
 
 Agents should suggest delegating to other agents when their findings cross into another agent's domain. When implementation changes design or uncovers design drift, suggest `@design`.
 
 When working on OpenCode setup in this repo (`config/opencode/*`), load the `opencode-config` skill.
+- Load `memorix-proactive` for non-trivial tasks so memory capture/resolve is consistent.
+- Load `stephen-context` for distributed systems and systems-level work, and when user preferences or domain assumptions affect recommendations.
+- Load `distributed-systems` for distributed systems design, debugging, consistency, and failure-model discussions.
+- Load `cloud-instance-shapes` when comparing cloud or neo-cloud machine types.
 
 ## Code Philosophy
 
@@ -226,25 +242,7 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 
 Use Memorix memory tools to maintain persistent context across sessions.
 
-### Proactive Memory Policy
-
-- Memorix mode: proactive.
-- Automatically store decisions, trade-offs, gotchas, problem-solutions, and meaningful what-changed items.
-- Use `topicKey` for anything that may evolve.
-- Track multi-session efforts with `progress` (`feature`/`status`/`completion`).
-- Resolve completed memories when tasks are done.
-- At the end of each substantial task, add or update a session summary at `topicKey: "session/latest-summary"`.
-- If uncertain whether to store, bias toward storing concise structured memory.
-- After every non-trivial exchange, run a memory checkpoint:
-- 1) What new facts or decisions were introduced?
-- 2) What should be stored or updated?
-- 3) What can be resolved?
-
-- On session start: call `memorix_session_start`, then `memorix_search` for context relevant to the user's first message.
-- Store with appropriate types: `decision` for architecture choices, `problem-solution` for bugs, `gotcha` for surprises, `what-changed` for config/feature changes, `trade-off` for evaluated alternatives. Skip trivial actions.
-- Use `topicKey` for evolving topics to update rather than duplicate. Use `memorix_suggest_topic_key` to generate keys.
-- Include reasoning ("chose X because Y"), file paths, and related concepts in every observation.
-- For multi-session work, use the `progress` parameter to track feature name, status (`in-progress`, `completed`, `blocked`), and completion percentage.
-- Resolve completed tasks and fixed bugs with `memorix_resolve` so they stop polluting search.
-- On session end: store a decision-chain summary with `topicKey: "session/latest-summary"`. Structure: goal, key decisions with reasoning, what changed (file paths), current state, next steps.
-- Dedup is automatic on store. Use `memorix_deduplicate` only if duplicates pile up.
+- Memorix mode is proactive by default.
+- Load and follow the `memorix-proactive` skill.
+- On session start: call `memorix_session_start`, then `memorix_search` for context relevant to the first message.
+- Use `topicKey` for evolving topics and resolve completed memories.
