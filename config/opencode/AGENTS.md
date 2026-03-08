@@ -25,6 +25,13 @@
 - Use `/pr-create` to draft PR title/body and propose a copy-paste `gh pr create` command in one response.
 - When completing work that corresponds to an item in `TODO.md`, check it off by changing `- [ ]` to `- [x]`.
 
+## Sandbox Experiments
+
+- Use `/tmp/opencode-sandbox` for throwaway experiments, generated artifacts, and temporary scripts.
+- Keep repository changes out of the sandbox; copy back only deliberate final outputs.
+- Prefer creating per-task subdirectories under `/tmp/opencode-sandbox` and clean them up when done.
+- Do not store secrets in the sandbox.
+
 ## Design Docs
 
 - Treat design docs as live artifacts, not one-time specs. Keep them updated as implementation evolves.

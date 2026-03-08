@@ -53,7 +53,10 @@
       "github-pr-create": "allow"
     },
     "external_directory": {
-      "~/code/**": "allow"
+      "~/code/**": "allow",
+      "/Users/sjd/code/**": "allow",
+      "/tmp/opencode-sandbox/**": "allow",
+      "/private/tmp/opencode-sandbox/**": "allow"
     },
     "bash": {
       "git *": "ask",
