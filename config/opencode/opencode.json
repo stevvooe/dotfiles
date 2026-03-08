@@ -60,7 +60,9 @@
       "~/code/**": "allow",
       "/Users/sjd/code/**": "allow",
       "/tmp/opencode-sandbox/**": "allow",
-      "/private/tmp/opencode-sandbox/**": "allow"
+      "/private/tmp/opencode-sandbox/**": "allow",
+      "/var/folders/**/T/opencode-sandbox/**": "allow",
+      "/private/var/folders/**/T/opencode-sandbox/**": "allow"
     },
     "bash": {
       "git *": "ask",
