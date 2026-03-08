@@ -35,7 +35,7 @@ brew-packages: brew
 stow: brew
 	which stow || brew install stow
 
-link: link-runcoms link-config link-bin
+link: link-runcoms link-config link-bin link-gnupg
 
 $(HOME)/bin:
 	mkdir -p "$@"
@@ -58,14 +58,29 @@ unlink-runcoms: stow
 	for FILE in $$(\ls -A runcoms); do if [ -f $(HOME)/$$FILE.bak ]; then \
 		mv -v $(HOME)/$$FILE.bak $(HOME)/$${FILE%%.bak}; fi; done
 
+link-gnupg: stow gnupg/.gnupg/gpg-agent.conf
+	mkdir -p $(HOME)/.gnupg
+	chmod 700 $(HOME)/.gnupg
+	if [ -f $(HOME)/.gnupg/gpg-agent.conf -a ! -h $(HOME)/.gnupg/gpg-agent.conf ]; then \
+		mv -v $(HOME)/.gnupg/gpg-agent.conf $(HOME)/.gnupg/gpg-agent.conf.bak; \
+	fi
+	stow -t $(HOME) gnupg
+	chmod 600 $(HOME)/.gnupg/gpg-agent.conf
+	gpgconf --kill gpg-agent || true
+
+unlink-gnupg: stow
+	stow --delete -t $(HOME) gnupg
+	if [ -f $(HOME)/.gnupg/gpg-agent.conf.bak ]; then \
+		mv -v $(HOME)/.gnupg/gpg-agent.conf.bak $(HOME)/.gnupg/gpg-agent.conf; \
+	fi
+
 ssh-setup: ~/.ssh/id_ed25519
 
 ~/.ssh/id_ed25519:
 	# Generate a new ssh key for each new machine, if not already present.
 	ssh-keygen -t ed25519
 
-gpg-setup: brew-packages .gpg-key-generated
-	grep -q "pinentry-program" ~/.gnupg/gpg-agent.conf || echo "pinentry-program $$(which pinentry-mac)" >> ~/.gnupg/gpg-agent.conf # don't manage this with dotfiles
+gpg-setup: brew-packages link-gnupg .gpg-key-generated
 
 .gpg-key-generated:
 	gpg --full-generate-key
