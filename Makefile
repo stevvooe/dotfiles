@@ -17,7 +17,7 @@ all: \
 	nvim-setup
 
 submodules:
-	git submodule update --init --recursive # ensure that .zprezto is fully pulled
+	git submodule update --init --recursive
 
 brew:
 	which brew || ( \
@@ -83,7 +83,7 @@ ifndef EMAIL
 endif
 	git config --file $(DOTFILES)/config/git/email.inc user.email "$$EMAIL"
 
-zsh-setup: submodules
+zsh-setup:
 # This ifneq is just broken for some reason
  # echo "Default Shell: $(DEFAULT_SHELL)"
 #ifneq ($(DEFAULT_SHELL),/bin/zsh)

@@ -6,20 +6,7 @@
 #
 #
 
-# Source Prezto.
-if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
-  _prezto_aliases_state="$options[aliases]"
-  setopt no_aliases
-  source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
-  if [[ "$_prezto_aliases_state" == on ]]; then
-    setopt aliases
-  else
-    setopt no_aliases
-  fi
-  unset _prezto_aliases_state
-fi
-
-typeset -gU path
+typeset -gU path fpath
 path=($path)
 
 # Customize to your needs...
@@ -64,8 +51,84 @@ if command -v rustup >/dev/null 2>&1; then
   unset _rc_pair _rc_cmd _rc_file
   fpath=("$rust_completion_dir" $fpath)
 fi
+
+# Include system and Homebrew completion directories when present.
+for _zsh_site_functions in /opt/homebrew/share/zsh/site-functions /usr/local/share/zsh/site-functions; do
+  [[ -d "$_zsh_site_functions" ]] && fpath=("$_zsh_site_functions" $fpath)
+done
+unset _zsh_site_functions
+
 autoload -Uz compinit
-compinit
+_zsh_compdump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+mkdir -p "${_zsh_compdump:h}"
+compinit -i -d "$_zsh_compdump"
+unset _zsh_compdump
+
+# Interactive shell defaults.
+export HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+export HISTSIZE=100000
+export SAVEHIST=100000
+setopt APPEND_HISTORY
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_FIND_NO_DUPS
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_REDUCE_BLANKS
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_VERIFY
+setopt SHARE_HISTORY
+bindkey -e
+
+# Completion behavior.
+setopt COMPLETE_IN_WORD
+setopt ALWAYS_TO_END
+setopt AUTO_MENU
+setopt AUTO_LIST
+setopt AUTO_PARAM_SLASH
+unsetopt MENU_COMPLETE
+unsetopt FLOW_CONTROL
+
+zstyle ':completion:*:default' list-prompt '%S%M matches%s'
+zstyle ':completion:*' menu select
+zstyle ':completion:*:matches' group 'yes'
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*' verbose yes
+zstyle ':completion::complete:*' use-cache on
+zstyle ':completion::complete:*' cache-path "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompcache"
+zstyle ':completion:*' matcher-list \
+  'm:{[:lower:]}={[:upper:]}' \
+  'm:{[:upper:]}={[:lower:]}' \
+  'r:|[._-]=* r:|=*' \
+  'l:|=* r:|=*'
+
+# Interactive plugins.
+_zsh_plugin_prefix=""
+if command -v brew >/dev/null 2>&1; then
+  _zsh_plugin_prefix="$(brew --prefix)/share"
+elif [[ -d /opt/homebrew/share ]]; then
+  _zsh_plugin_prefix="/opt/homebrew/share"
+elif [[ -d /usr/local/share ]]; then
+  _zsh_plugin_prefix="/usr/local/share"
+fi
+
+if [[ -n "$_zsh_plugin_prefix" ]]; then
+  if [[ -r "$_zsh_plugin_prefix/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "$_zsh_plugin_prefix/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  fi
+
+  if [[ -r "$_zsh_plugin_prefix/zsh-history-substring-search/zsh-history-substring-search.zsh" ]]; then
+    source "$_zsh_plugin_prefix/zsh-history-substring-search/zsh-history-substring-search.zsh"
+    bindkey '^[[A' history-substring-search-up
+    bindkey '^[[B' history-substring-search-down
+  fi
+
+  if [[ -r "$_zsh_plugin_prefix/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+    source "$_zsh_plugin_prefix/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+  fi
+fi
+
+unset _zsh_plugin_prefix
 
 # Configures eza directory
 export EZA_CONFIG_DIR=$XDG_CONFIG_HOME/eza
