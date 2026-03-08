@@ -226,6 +226,20 @@ When working on OpenCode setup in this repo (`config/opencode/*`), load the `ope
 
 Use Memorix memory tools to maintain persistent context across sessions.
 
+### Proactive Memory Policy
+
+- Memorix mode: proactive.
+- Automatically store decisions, trade-offs, gotchas, problem-solutions, and meaningful what-changed items.
+- Use `topicKey` for anything that may evolve.
+- Track multi-session efforts with `progress` (`feature`/`status`/`completion`).
+- Resolve completed memories when tasks are done.
+- At the end of each substantial task, add or update a session summary at `topicKey: "session/latest-summary"`.
+- If uncertain whether to store, bias toward storing concise structured memory.
+- After every non-trivial exchange, run a memory checkpoint:
+- 1) What new facts or decisions were introduced?
+- 2) What should be stored or updated?
+- 3) What can be resolved?
+
 - On session start: call `memorix_session_start`, then `memorix_search` for context relevant to the user's first message.
 - Store with appropriate types: `decision` for architecture choices, `problem-solution` for bugs, `gotcha` for surprises, `what-changed` for config/feature changes, `trade-off` for evaluated alternatives. Skip trivial actions.
 - Use `topicKey` for evolving topics to update rather than duplicate. Use `memorix_suggest_topic_key` to generate keys.
