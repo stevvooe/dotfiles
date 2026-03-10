@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ctp_reset=$'\033[0m'
+ctp_mauve=$'\033[38;5;183m'
+ctp_lavender=$'\033[38;5;147m'
+ctp_subtext=$'\033[38;5;250m'
+fzf_colors='bg:#24273a,bg+:#363a4f,fg:#cad3f5,fg+:#f4dbd6,gutter:#24273a,hl:#f5a97f,hl+:#f5a97f,pointer:#c6a0f6,marker:#a6da95,prompt:#8aadf4,spinner:#8bd5ca,info:#91d7e3,border:#494d64,separator:#363a4f,header:#a5adcb'
+
+if ! command -v fzf >/dev/null 2>&1; then
+  printf 'error: fzf not found in PATH\n' >&2
+  exit 1
+fi
+
+current_window=$(tmux display-message -p '#I')
+
+selection=$(
+  tmux list-windows -F '#{session_name}:#{window_index}	#{session_name}	#{window_index}	#{window_name}	#{window_panes}' |
+    while IFS=$'\t' read -r target session index name panes; do
+      if [ "$index" = "$current_window" ]; then
+        order=0
+        marker="${ctp_mauve}>${ctp_reset}"
+        name_label="${ctp_lavender}$(printf '%-26.26s' "$name")${ctp_reset}"
+      else
+        order=1
+        marker=' '
+        name_label=$(printf '%-26.26s' "$name")
+      fi
+      index_label="${ctp_subtext}$(printf '%2s' "$index")${ctp_reset}"
+      pane_label="${ctp_subtext}$(printf '%2s panes' "$panes")${ctp_reset}"
+      printf '%s\t%s\t%s %s  %s  %s\n' "$order" "$target" "$marker" "$index_label" "$name_label" "$pane_label"
+    done |
+    sort -t $'\t' -k1,1n -k2,2 |
+    cut -f2- |
+    fzf --ansi --color="$fzf_colors" --prompt='window> ' --header='enter switch  esc cancel' --height=100% --layout=reverse --border=rounded --delimiter=$'\t' --with-nth=2
+)
+
+if [ -z "$selection" ]; then
+  exit 0
+fi
+
+target=${selection%%$'\t'*}
+tmux select-window -t "$target"

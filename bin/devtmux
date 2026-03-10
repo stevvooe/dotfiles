@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+emsg() {
+  printf '%s\n' "$*" >&2
+}
+
+require_cmd() {
+  local cmd=$1
+
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    emsg "error: $cmd not found in PATH"
+    exit 1
+  fi
+}
+
+repo_root() {
+  if git rev-parse --show-toplevel >/dev/null 2>&1; then
+    git rev-parse --show-toplevel
+  else
+    pwd -P
+  fi
+}
+
+github_repo_slug() {
+  local remote_url slug
+
+  remote_url=$(git config --get remote.origin.url 2>/dev/null || true)
+  if [ -z "$remote_url" ]; then
+    return 1
+  fi
+
+  case "$remote_url" in
+    git@github.com:*)
+      slug=${remote_url#git@github.com:}
+      ;;
+    https://github.com/*)
+      slug=${remote_url#https://github.com/}
+      ;;
+    ssh://git@github.com/*)
+      slug=${remote_url#ssh://git@github.com/}
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  slug=${slug%.git}
+  if [[ ! "$slug" =~ ^[^/]+/[^/]+$ ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$slug"
+}
+
+sanitize_session_name() {
+  local name=$1
+
+  name=${name//\//-}
+  name=${name// /-}
+  name=${name//:/-}
+  name=${name//[^A-Za-z0-9._-]/-}
+  while [[ "$name" == .* || "$name" == -* ]]; do
+    name=${name#.}
+    name=${name#-}
+  done
+
+  if [ -z "$name" ]; then
+    name=dev
+  fi
+
+  printf '%s\n' "$name"
+}
+
+main() {
+  local root base_name repo_slug session_source session
+
+  require_cmd tmux
+  require_cmd nvim
+  require_cmd opencode
+
+  root=$(repo_root)
+  base_name=$(basename "$root")
+  repo_slug=$(github_repo_slug || true)
+  session_source=${repo_slug:-$base_name}
+  session=$(sanitize_session_name "$session_source")
+
+  if ! tmux has-session -t "$session" 2>/dev/null; then
+    tmux new-session -d -s "$session" -n nvim -c "$root" 'nvim .'
+    tmux split-window -h -t "$session":nvim -c "$root" 'opencode'
+    tmux new-window -t "$session":2 -n zsh -c "$root"
+    tmux select-window -t "$session":nvim
+    tmux select-pane -t "$session":nvim.1
+  fi
+
+  if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "$session"
+  else
+    tmux attach-session -t "$session"
+  fi
+}
+
+main "$@"

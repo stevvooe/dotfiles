@@ -15,6 +15,9 @@ eval "$(starship init zsh)"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
+# Apply Catppuccin Macchiato colors to all fzf usage.
+export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS }--color=bg:#24273a,bg+:#363a4f,fg:#cad3f5,fg+:#f4dbd6,gutter:#24273a,hl:#f5a97f,hl+:#f5a97f,pointer:#c6a0f6,marker:#a6da95,prompt:#8aadf4,spinner:#8bd5ca,info:#91d7e3,border:#494d64,separator:#363a4f,header:#a5adcb"
+
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
@@ -96,6 +99,9 @@ zstyle ':completion:*' group-name ''
 zstyle ':completion:*' verbose yes
 zstyle ':completion::complete:*' use-cache on
 zstyle ':completion::complete:*' cache-path "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompcache"
+zstyle ':fzf-tab:*' fzf-command fzf
+zstyle ':fzf-tab:*' switch-group ',' '.'
+zstyle ':fzf-tab:*' use-fzf-default-opts yes
 zstyle ':completion:*' matcher-list \
   'm:{[:lower:]}={[:upper:]}' \
   'm:{[:upper:]}={[:lower:]}' \
@@ -113,6 +119,10 @@ elif [[ -d /usr/local/share ]]; then
 fi
 
 if [[ -n "$_zsh_plugin_prefix" ]]; then
+  if [[ -r "$_zsh_plugin_prefix/fzf-tab/fzf-tab.zsh" ]]; then
+    source "$_zsh_plugin_prefix/fzf-tab/fzf-tab.zsh"
+  fi
+
   if [[ -r "$_zsh_plugin_prefix/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
     source "$_zsh_plugin_prefix/zsh-autosuggestions/zsh-autosuggestions.zsh"
   fi
