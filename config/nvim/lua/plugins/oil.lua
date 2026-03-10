@@ -5,6 +5,7 @@ return {
     { "-", "<cmd>Oil<cr>", desc = "Open parent directory" },
   },
   opts = {
+    columns = {},
     view_options = {
       show_hidden = true,
     },
