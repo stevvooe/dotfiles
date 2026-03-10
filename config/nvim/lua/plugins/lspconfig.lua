@@ -1,6 +1,11 @@
 return {
     "neovim/nvim-lspconfig",
+    dependencies = {
+        "saghen/blink.cmp",
+    },
     config = function()
+        local blink = require("blink.cmp")
+
         -- Use LspAttach autocommand to only map the following keys
         -- after the language server attaches to the current buffer
         vim.api.nvim_create_autocmd('LspAttach', {
@@ -37,6 +42,7 @@ return {
             cmd = { 'gopls' },
             filetypes = { 'go', 'gomod', 'gowork', 'gotmpl' },
             root_markers = { 'go.work', 'go.mod', '.git' },
+            capabilities = blink.get_lsp_capabilities(),
             settings = {
                 gopls = {
                     analyses = {
@@ -72,6 +78,7 @@ return {
             cmd = { 'lua-language-server' },
             filetypes = { 'lua' },
             root_markers = { '.luarc.json', '.luarc.jsonc', '.luacheckrc', '.stylua.toml', 'stylua.toml', 'selene.toml', 'selene.yml', '.git' },
+            capabilities = blink.get_lsp_capabilities(),
             settings = {
                 Lua = {
                     completion = {
@@ -86,6 +93,7 @@ return {
             cmd = { 'rust-analyzer' },
             filetypes = { 'rust' },
             root_markers = { 'Cargo.toml', 'rust-project.json' },
+            capabilities = blink.get_lsp_capabilities(),
             on_attach = function(client, bufnr)
                 vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
             end,
@@ -149,6 +157,7 @@ return {
             cmd = { 'pyright-langserver', '--stdio' },
             filetypes = { 'python' },
             root_markers = { 'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt', 'Pipfile', 'pyrightconfig.json', '.git' },
+            capabilities = blink.get_lsp_capabilities(),
             before_init = function(_, config)
                 config.settings.python.pythonPath = find_venv_python(config.root_dir)
             end,
