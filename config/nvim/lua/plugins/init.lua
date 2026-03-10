@@ -2,7 +2,6 @@ return {
   { import = "plugins.colorscheme" },
   { import = "plugins.treesitter" },
   { import = "plugins.treesitter-context" },
-  { import = "plugins.bufferline" },
   { import = "plugins.cmp" },
   { import = "plugins.lspconfig" },
   { import = "plugins.lazydev" },
