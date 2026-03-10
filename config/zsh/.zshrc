@@ -9,6 +9,33 @@
 typeset -gU path fpath
 path=($path)
 
+_proto_update_path() {
+  local proto_root proto_dir
+  local -a next_path
+
+  proto_root="${PROTO_HOME:-$HOME/.proto}"
+  proto_dir="$(_proto_local_config_dir 2>/dev/null || true)"
+
+  next_path=()
+  for _path_entry in $path; do
+    if [[ "$_path_entry" != "$proto_root/shims" && "$_path_entry" != "$proto_root/bin" ]]; then
+      next_path+=("$_path_entry")
+    fi
+  done
+
+  if [[ -n "$proto_dir" ]]; then
+    [[ -d "$proto_root/bin" ]] && next_path=("$proto_root/bin" $next_path)
+    [[ -d "$proto_root/shims" ]] && next_path=("$proto_root/shims" $next_path)
+  fi
+
+  path=("${next_path[@]}")
+  export PATH
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook chpwd _proto_update_path
+_proto_update_path
+
 # Customize to your needs...
 # Starship prompt
 eval "$(starship init zsh)"

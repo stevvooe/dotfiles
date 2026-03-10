@@ -69,7 +69,6 @@ typeset -gU cdpath fpath mailpath path
 # Set the list of directories that Zsh searches for programs.
 path=(
   $PYENV_ROOT/bin(N)
-  $PROTO_HOME/{shims,bin}(N)
   $HOME/go/{,s}bin(N)
   $HOME/{,s}bin(N)
   $HOME/.local/{,s}bin(N)
@@ -78,6 +77,21 @@ path=(
   /opt/{homebrew,local}/{,s}bin(N)
   $path
 )
+
+_proto_local_config_dir() {
+  local dir
+
+  dir="$PWD"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/.prototools" ]]; then
+      print -r -- "$dir"
+      return 0
+    fi
+    dir="${dir:h}"
+  done
+
+  return 1
+}
 
 #
 # Less
