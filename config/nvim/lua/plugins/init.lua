@@ -17,6 +17,7 @@ return {
   { import = "plugins.harpoon" },
   { import = "plugins.devicons" },
   { import = "plugins.nvim-tree" },
+  { import = "plugins.vim-tmux-navigator" },
   { import = "plugins.copilot" },
   { import = "plugins.fugitive" },
   { import = "plugins.sleuth" },

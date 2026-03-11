@@ -32,6 +32,17 @@ stow: brew
 
 link: link-runcoms link-config link-bin link-gnupg
 
+tmux-tpm-update:
+	set -e; \
+	TPM_DIR="$$HOME/.local/share/tmux/plugins/tpm"; \
+	mkdir -p "$${TPM_DIR%/tpm}"; \
+	if [ -d "$$TPM_DIR/.git" ]; then \
+		git -C "$$TPM_DIR" pull --ff-only; \
+	else \
+		rm -rf "$$TPM_DIR"; \
+		git clone https://github.com/tmux-plugins/tpm "$$TPM_DIR"; \
+	fi
+
 $(HOME)/bin:
 	mkdir -p "$@"
 

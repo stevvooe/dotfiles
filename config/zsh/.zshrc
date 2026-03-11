@@ -109,6 +109,7 @@ setopt HIST_SAVE_NO_DUPS
 setopt HIST_VERIFY
 setopt SHARE_HISTORY
 bindkey -e
+[[ -o interactive && -t 0 ]] && stty -ixon
 
 # Completion behavior.
 setopt COMPLETE_IN_WORD

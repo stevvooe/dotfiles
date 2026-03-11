@@ -8,8 +8,8 @@ map("n", "]d", vim.diagnostic.goto_next)
 map("n", "<leader>q", vim.diagnostic.setloclist)
 map("n", "<leader>Q", vim.diagnostic.setqflist)
 
-map("n", "<C-j>", "<cmd>bnext<CR>")
-map("n", "<C-k>", "<cmd>bprev<CR>")
+map("n", "]b", "<cmd>bnext<CR>", { desc = "Next buffer" })
+map("n", "[b", "<cmd>bprev<CR>", { desc = "Previous buffer" })
 
 map("t", "<Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
