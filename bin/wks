@@ -34,7 +34,7 @@ Commands:
 Notes:
   - Workspaces live under <main checkout>/.workspaces
   - New workspaces create branch wks/<name>
-  - wks oc defaults to edit permission allow unless OPENCODE_PERMISSION is already set
+  - wks oc defaults to edit and todowrite permission allow unless OPENCODE_PERMISSION is already set
   - Use a shell wrapper to cd after switch output
 EOF
 }
@@ -284,7 +284,7 @@ cmd_oc() {
   set -- ${opencode_args[@]+"${opencode_args[@]}"}
 
   if [ -z "${OPENCODE_PERMISSION:-}" ]; then
-    exec env OPENCODE_PERMISSION='{"edit":"allow"}' opencode "$path" "$@"
+    exec env OPENCODE_PERMISSION='{"edit":"allow","todowrite":"allow"}' opencode "$path" "$@"
   fi
 
   exec opencode "$path" "$@"
