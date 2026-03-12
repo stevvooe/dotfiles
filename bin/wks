@@ -12,18 +12,24 @@ Usage:
   wks                  # interactive switch (fzf)
   wks ls
   wks new <name> [--base <ref>]
+  wks new --fix <name> [--base <ref>]
+  wks new --feat <name> [--base <ref>]
+  wks new <name> --branch <branch> [--base <ref>]
   wks names
   wks rows
   wks sw [name]
   wks switch [name]
   wks oc [name] [-- <opencode-args...>]
   wks oc --new <name> [--base <ref>] [-- <opencode-args...>]
+  wks oc --new --fix <name> [--base <ref>] [-- <opencode-args...>]
+  wks oc --new --feat <name> [--base <ref>] [-- <opencode-args...>]
+  wks oc --new <name> --branch <branch> [--base <ref>] [-- <opencode-args...>]
   wks rm <name> [--force]
   wks path [name]
 
 Commands:
   ls                   List main + .workspaces worktrees
-  new                  Create .workspaces/<name> from --base (default: HEAD)
+  new                  Create .workspaces/<name> from --base (default: origin/HEAD)
   names                Print workspace names (for scripting/completion)
   rows                 Print tab-delimited workspace rows (name, branch, state, path)
   sw, switch           Print selected workspace path (fzf when no name)
@@ -33,7 +39,9 @@ Commands:
 
 Notes:
   - Workspaces live under <main checkout>/.workspaces
-  - New workspaces create branch wks/<name>
+  - New workspaces default to branch wks/<name>
+  - --fix/--feat create fix/<user>/<name> or feat/<user>/<name>
+  - --branch uses an explicit branch name
   - wks oc defaults to edit and todowrite permission allow unless OPENCODE_PERMISSION is already set
   - Use a shell wrapper to cd after switch output
 EOF
@@ -157,6 +165,110 @@ validate_workspace_name() {
   fi
 }
 
+branch_user() {
+  local user=${WKS_BRANCH_USER:-${GITHUB_USER:-${USER:-}}}
+
+  if [ -z "$user" ]; then
+    emsg "error: could not determine branch user (set WKS_BRANCH_USER)"
+    exit 1
+  fi
+
+  printf '%s\n' "$user"
+}
+
+validate_branch_name() {
+  local branch=$1
+
+  if ! git check-ref-format --branch "$branch" >/dev/null 2>&1; then
+    emsg "error: invalid branch name '$branch'"
+    exit 1
+  fi
+}
+
+branch_for_kind() {
+  local kind=$1
+  local name=$2
+
+  printf '%s/%s/%s\n' "$kind" "$(branch_user)" "$name"
+}
+
+resolve_workspace_branch() {
+  local name=$1
+  local explicit_branch=$2
+  local branch_kind=$3
+
+  if [ -n "$explicit_branch" ] && [ -n "$branch_kind" ]; then
+    emsg "error: --branch cannot be combined with --$branch_kind"
+    exit 1
+  fi
+
+  if [ -n "$explicit_branch" ]; then
+    printf '%s\n' "$explicit_branch"
+    return 0
+  fi
+
+  if [ -n "$branch_kind" ]; then
+    branch_for_kind "$branch_kind" "$name"
+    return 0
+  fi
+
+  printf 'wks/%s\n' "$name"
+}
+
+default_workspace_base() {
+  local branch base
+
+  if command -v gh >/dev/null 2>&1; then
+    if branch=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null) && [ -n "$branch" ]; then
+      printf 'origin/%s\n' "$branch"
+      return 0
+    fi
+  fi
+
+  if base=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null); then
+    printf '%s\n' "$base"
+    return 0
+  fi
+
+  if git show-ref --verify --quiet refs/remotes/origin/main; then
+    printf 'origin/main\n'
+    return 0
+  fi
+
+  if git show-ref --verify --quiet refs/remotes/origin/master; then
+    printf 'origin/master\n'
+    return 0
+    fi
+
+  emsg "error: could not determine default remote base (expected origin/HEAD, origin/main, or origin/master)"
+  exit 1
+}
+
+set_branch_kind() {
+  local current_kind=$1
+  local next_kind=$2
+
+  if [ -n "$current_kind" ] && [ "$current_kind" != "$next_kind" ]; then
+    emsg "error: --$current_kind cannot be combined with --$next_kind"
+    exit 1
+  fi
+
+  printf '%s\n' "$next_kind"
+}
+
+consume_option_value() {
+  local flag=$1
+  local label=$2
+  shift 2
+
+  if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+    emsg "error: $flag requires a $label"
+    exit 1
+  fi
+
+  printf '%s\n' "$1"
+}
+
 cmd_ls() {
   local name branch state path marker
 
@@ -206,7 +318,7 @@ pick_workspace_path() {
 }
 
 cmd_oc() {
-  local name path create_new base
+  local name path create_new base branch branch_kind explicit_branch base_explicit
   local -a opencode_args
 
   if ! command -v opencode >/dev/null 2>&1; then
@@ -216,7 +328,11 @@ cmd_oc() {
 
   name=
   create_new=0
-  base=HEAD
+  base=
+  branch=
+  branch_kind=
+  explicit_branch=
+  base_explicit=0
   opencode_args=()
 
   while [ $# -gt 0 ]; do
@@ -241,6 +357,56 @@ cmd_oc() {
           exit 1
         fi
         base=$1
+        base_explicit=1
+        shift
+        ;;
+      --branch)
+        shift
+        explicit_branch=$(consume_option_value --branch "branch name" "$@")
+        shift
+        ;;
+      --branch=*)
+        explicit_branch=${1#--branch=}
+        if [ -z "$explicit_branch" ]; then
+          emsg "error: --branch requires a branch name"
+          exit 1
+        fi
+        shift
+        ;;
+      --fix)
+        shift
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        if [ -n "$name" ]; then
+          continue
+        fi
+        name=$(consume_option_value --fix "workspace name" "$@")
+        shift
+        ;;
+      --fix=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        name=${1#--fix=}
+        shift
+        ;;
+      --feat)
+        shift
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        if [ -n "$name" ]; then
+          continue
+        fi
+        name=$(consume_option_value --feat "workspace name" "$@")
+        shift
+        ;;
+      --feat=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        name=${1#--feat=}
         shift
         ;;
       --)
@@ -268,10 +434,18 @@ cmd_oc() {
       emsg "error: --new requires a workspace name"
       exit 1
     fi
-    path=$(cmd_new "$name" --base "$base")
+    if [ "$base_explicit" -eq 0 ]; then
+      base=$(default_workspace_base)
+    fi
+    branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
+    path=$(cmd_new "$name" --base "$base" --branch "$branch")
   else
-    if [ "$base" != "HEAD" ]; then
+    if [ "$base_explicit" -eq 1 ]; then
       emsg "error: --base can only be used with --new"
+      exit 1
+    fi
+    if [ -n "$explicit_branch" ] || [ -n "$branch_kind" ]; then
+      emsg "error: --branch, --fix, and --feat can only be used with --new"
       exit 1
     fi
     if [ -n "$name" ]; then
@@ -291,7 +465,7 @@ cmd_oc() {
 }
 
 cmd_new() {
-  local name base branch target
+  local name base branch target branch_kind explicit_branch
 
   if [ $# -lt 1 ]; then
     emsg "error: missing workspace name"
@@ -299,9 +473,10 @@ cmd_new() {
     exit 1
   fi
 
-  name=$1
-  shift
-  base=HEAD
+  name=
+  base=
+  branch_kind=
+  explicit_branch=
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -314,20 +489,74 @@ cmd_new() {
         base=$1
         shift
         ;;
+      --branch)
+        shift
+        explicit_branch=$(consume_option_value --branch "branch name" "$@")
+        shift
+        ;;
+      --branch=*)
+        explicit_branch=${1#--branch=}
+        if [ -z "$explicit_branch" ]; then
+          emsg "error: --branch requires a branch name"
+          exit 1
+        fi
+        shift
+        ;;
+      --fix)
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        shift
+        ;;
+      --fix=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        name=${1#--fix=}
+        shift
+        ;;
+      --feat)
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        shift
+        ;;
+      --feat=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        name=${1#--feat=}
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
         ;;
       *)
+        if [ -z "$name" ]; then
+          name=$1
+          shift
+          continue
+        fi
         emsg "error: unknown option '$1'"
         exit 1
         ;;
     esac
   done
 
+  if [ -z "$name" ]; then
+    emsg "error: missing workspace name"
+    exit 1
+  fi
+
+  if [ -z "$base" ]; then
+    base=$(default_workspace_base)
+  fi
+
   validate_workspace_name "$name"
+  branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
+  validate_branch_name "$branch"
   target="$workspaces_dir/$name"
-  branch="wks/$name"
 
   if [ -e "$target" ]; then
     emsg "error: workspace path already exists: $target"
