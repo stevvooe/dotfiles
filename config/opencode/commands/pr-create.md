@@ -16,11 +16,26 @@ Behavior:
   - `Body:` markdown
   - `Review requested: confirm or edit the draft before running command.`
   - The exact command that will be executed if approved:
-    - `gh pr create --base <base> --title "<title>" --body-file <tempfile>`
+    - ```bash
+      BASE=$(cat <<'__PR_CREATE_BASE__'
+      <base>
+      __PR_CREATE_BASE__
+      )
+      TITLE=$(cat <<'__PR_CREATE_TITLE__'
+      <title>
+      __PR_CREATE_TITLE__
+      )
+      BODY=$(cat <<'__PR_CREATE_BODY__'
+      <body>
+      __PR_CREATE_BODY__
+      )
+      gh pr create --base "$BASE" --title "$TITLE" --body "$BODY"
+      ```
 
 Approval flow:
 - After showing the draft + exact command, ask: `Run this command?`
-- If user approves (for example: `run it`, `yes`, `looks good`), execute that exact command.
+- Validate the exact shell snippet by passing it to `bash -n` on stdin before presenting it.
+- If user approves (for example: `run it`, `yes`, `looks good`), validate the exact shell snippet again by passing it to `bash -n` on stdin, then execute that exact command.
 - If user requests edits, update title/body first, then re-propose and re-confirm.
 
 Requirements:
@@ -28,3 +43,7 @@ Requirements:
 - Analyze only commits and diff since merge-base with base branch.
 - Use repository PR template if present.
 - Do not include commit-by-commit changelog in PR body.
+- Do not write the PR body to a file; build it inline in the proposed command.
+- Review the final PR body before running `gh pr create`.
+- Use shell-safe quoting for all command examples; avoid inline quoting that can break on markdown or quotes.
+- Choose heredoc delimiters that do not appear as standalone lines in the base branch, title, or body.

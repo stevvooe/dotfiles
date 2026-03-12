@@ -19,17 +19,33 @@ Prepare a PR from the current branch by drafting title/body and proposing the `g
 
 ## Output
 
-- Return only:
+- Return:
   - `Title: <single line>`
   - `Body:` markdown
   - `Review requested: confirm or edit the draft before running command.`
   - Exact command to run:
-    - `gh pr create --base <base> --title "<title>" --body-file <tempfile>`
+    - ```bash
+      BASE=$(cat <<'__PR_CREATE_BASE__'
+      <base>
+      __PR_CREATE_BASE__
+      )
+      TITLE=$(cat <<'__PR_CREATE_TITLE__'
+      <title>
+      __PR_CREATE_TITLE__
+      )
+      BODY=$(cat <<'__PR_CREATE_BODY__'
+      <body>
+      __PR_CREATE_BODY__
+      )
+      gh pr create --base "$BASE" --title "$TITLE" --body "$BODY"
+      ```
+  - `Run this command?`
 
 ## Approval and execution
 
 - Ask `Run this command?` after presenting the draft and exact command.
-- If user approves (`run it`, `yes`, `looks good`), execute that exact command.
+- Validate the exact shell snippet by passing it to `bash -n` on stdin before presenting it.
+- If user approves (`run it`, `yes`, `looks good`), validate the exact shell snippet again by passing it to `bash -n` on stdin, then execute that exact command.
 - If user requests edits, revise the draft, then re-propose command and re-confirm.
 
 ## Rules
@@ -37,3 +53,7 @@ Prepare a PR from the current branch by drafting title/body and proposing the `g
 - Do not invent tests or behavior.
 - Preserve template heading names/order when template exists.
 - If no template exists, use `## Summary`, `## Testing`, `## Risks`.
+- Do not write the PR body to a file; construct it inline in the proposed command.
+- Review the final PR body before running `gh pr create`.
+- Use shell-safe quoting for all command examples; avoid inline quoting that can break on markdown or quotes.
+- Choose heredoc delimiters that do not appear as standalone lines in the base branch, title, or body.
