@@ -175,6 +175,12 @@ alias ls="eza"
 alias ll="eza -l --git"
 alias la="eza -la --git"
 
+# Kubernetes shortcuts
+alias k="kubectl"
+alias kc="kubectl"
+alias kx="kubectx"
+alias kn="kubens"
+
 # zoxide
 eval "$(zoxide init zsh)"
 
