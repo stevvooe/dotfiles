@@ -85,11 +85,12 @@ Default delegation policy (proactive):
 
 Agents should suggest delegating to other agents when their findings cross into another agent's domain. When implementation changes design or uncovers design drift, suggest `@design`.
 
-When working on OpenCode setup in this repo (`config/opencode/*`), load the `opencode-config` skill.
 - Load `memorix-proactive` for non-trivial tasks so memory capture/resolve is consistent.
 - Load `stephen-context` for distributed systems and systems-level work, and when user preferences or domain assumptions affect recommendations.
 - Load `distributed-systems` for distributed systems design, debugging, consistency, and failure-model discussions.
 - Load `cloud-instance-shapes` when comparing cloud or neo-cloud machine types.
+- Load `github-actions-ci-debug` for broken GitHub Actions CI triage.
+- Load `rtk` for token savings plugin behavior, output compression debugging, or rtk command reference.
 
 ## Code Philosophy
 
