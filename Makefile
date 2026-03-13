@@ -5,15 +5,14 @@ export XDG_CONFIG_HOME = $(HOME)/.config
 
 all: \
 	brew \
+	brew-packages \
 	link \
 	ssh-setup \
 	gpg-setup \
 	git-setup \
-	zsh-setup \
 	go-setup \
 	rust-setup \
-	npm-setup \
-	nvim-setup
+	npm-setup
 brew:
 	which brew || ( \
 		/bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
@@ -104,16 +103,6 @@ ifndef EMAIL
 endif
 	git config --file $(DOTFILES)/config/git/email.inc user.email "$$EMAIL"
 
-zsh-setup:
-# This ifneq is just broken for some reason
- # echo "Default Shell: $(DEFAULT_SHELL)"
-#ifneq ($(DEFAULT_SHELL),/bin/zsh)
-	#chsh -s /bin/zsh
-# else
-# echo "Shell already defaults to zsh"
-# endif
-#
-
 go-setup: brew-packages
 
 rust-setup: brew-packages
@@ -124,4 +113,4 @@ npm-setup: brew-packages
 	which npm || (echo "npm not found, please install Node.js first" && exit 1)
 	cat $(DOTFILES)/npm-global-packages.txt | xargs -I {} npm install -g {}
 
-nvim-setup: link-config brew-packages
+

@@ -13,39 +13,39 @@
 
 ## Workflow
 
-- Projects follow a goals -> plan -> design -> build -> verify -> update cycle. Respect this order.
-- Before writing code, establish goals and a design. Write them down in a design doc or issue if one doesn't exist.
-- Goals are stable. Design evolves. Keep goals and design separate so changing the approach doesn't lose sight of the objective.
-- When the design needs to change mid-build, update the design first, then update the code. Don't let the code drift from the design silently.
-- Frequently revisit goals during implementation to make sure we haven't wandered off track.
-- When I describe a change in direction, confirm what the new design looks like before proceeding. Don't assume the rest of the plan stays the same.
-- Use `/todo` to capture ideas, tasks, or follow-ups to the project's `TODO.md` without interrupting the current work. Example: `/todo fix buffer alignment in reader.rs`. To review or reorganize the full list, use `!$EDITOR TODO.md`.
-- Use `/commit-message` to draft conventional commit messages from staged changes only. Do not include unstaged or untracked changes.
-- Use `/pr-description` to draft PR title/body from branch changes, following the repository PR template when available.
-- Use `/pr-create` to draft PR title/body and propose a copy-paste `gh pr create` command in one response.
-- When completing work that corresponds to an item in `TODO.md`, check it off by changing `- [ ]` to `- [x]`.
+- Follow phase gates: goals -> plan -> design -> build -> verify -> update.
+- Goals are stable. Design evolves. Keep them separate.
+- Before writing code, establish goals and a plan. For non-trivial work, write them to `.ai/` (gitignored) or a design doc.
+- Use `/todo` to capture follow-ups without interrupting current work.
+- Use `/commit-message` to draft conventional commit messages from staged changes only.
+- Use `/pr-create` to draft a PR and propose a `gh pr create` command in one response.
+- Use `/design-sync` to sync design docs with current decisions without derailing implementation.
+- When completing a `TODO.md` item, check it off.
 
-## Sandbox Experiments
+### Staying on track
 
-- Use `/tmp/opencode-sandbox` for throwaway experiments, generated artifacts, and temporary scripts.
+- When a problem changes the approach, stop. Restate the goal, explain the deviation, and confirm the updated plan before continuing.
+- Do not assume the rest of the plan survives a change in direction. Confirm what still holds.
+- If implementation drifts from the plan or design, update the artifact first, then the code.
+- Periodically restate the current goal and check alignment. Catching drift early is cheaper than unwinding it later.
+- Iteration is how good software gets made. Ship something small, get feedback, refine. Resist the urge to design everything upfront. Prefer a working slice that can be evaluated over a comprehensive plan that can't.
+- When a round of iteration reveals that the design was wrong, update the design, don't patch around it.
+
+### Design artifacts
+
+- Working plans and scratch designs go in `.ai/` (gitignored). Promote to `DESIGN.md` or `docs/design/` when worth checking in.
+- Before coding, search for existing design artifacts: `DESIGN.md`, `*_PLAN.md`, `docs/design/`, `.ai/`, and any markdown files that look like plans or specs.
+- For repos with multiple design docs, identify the active one for the current task and state it explicitly.
+- If multiple artifacts cover overlapping scope, reconcile them: identify conflicts, pick the authoritative source, and update or remove the others.
+- Record meaningful decisions in the plan, design doc, or memorix — not in a separate decision log.
+- Use `@design` for doc creation, sync, or cross-doc updates. Use `/design-sync` for quick alignment.
+- Before closing a task, verify the active design reflects shipped behavior and follow-ups are in `TODO.md`.
+
+### Sandbox
+
+- Use `/tmp/opencode-sandbox` for throwaway experiments and temporary scripts.
 - Keep repository changes out of the sandbox; copy back only deliberate final outputs.
-- Prefer creating per-task subdirectories under `/tmp/opencode-sandbox` and clean them up when done.
 - Do not store secrets in the sandbox.
-
-## Design Docs
-
-- Treat design docs as live artifacts, not one-time specs. Keep them updated as implementation evolves.
-- Before coding, look for and read relevant design files: `DESIGN.md`, `*_PLAN.md`, and `docs/design/*.md`.
-- For repos with multiple design docs, identify the active design doc for the current task and state it explicitly.
-- If implementation diverges from the current design, update the design doc first, then implement code changes.
-- Keep goals stable and design mutable. Preserve a clear goals section while updating design details.
-- Record meaningful design changes in a short decision log (`date`, `decision`, `reason`, `impact`).
-- If no design doc exists for non-trivial work, create one before implementation (default: `DESIGN.md` or task-specific `SOME_TASK_PLAN.md`).
-- Use the `@design` subagent when a task needs design doc creation, synchronization, or cross-doc updates.
-- Use `/design-sync` to quickly sync design docs with current decisions without derailing active implementation.
-- Use phase gates: goals -> plan -> design -> build -> verify -> update.
-- Verify alignment at each phase transition so goals, approach, and implementation stay synchronized.
-- Before closing a task, verify the active design doc reflects shipped behavior, unresolved gaps are called out, and follow-ups are captured in `TODO.md`.
 
 ## Git
 
@@ -84,6 +84,8 @@ Default delegation policy (proactive):
 - `@devops` — works on Dockerfiles, CI pipelines, and build/deploy config.
 
 Agents should suggest delegating to other agents when their findings cross into another agent's domain. When implementation changes design or uncovers design drift, suggest `@design`.
+
+## Skills
 
 - Load `memorix-proactive` for non-trivial tasks so memory capture/resolve is consistent.
 - Load `stephen-context` for distributed systems and systems-level work, and when user preferences or domain assumptions affect recommendations.

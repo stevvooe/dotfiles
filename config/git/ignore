@@ -7,3 +7,6 @@ npm-debug.log
 
 **/.claude/settings.local.json
 .nvimlog
+
+# Agent scratch space for working plans and designs
+.ai/

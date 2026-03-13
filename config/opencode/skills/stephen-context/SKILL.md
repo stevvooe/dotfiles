@@ -1,8 +1,7 @@
-# Skill: stephen-context
-
-## Purpose
-
-Apply Stephen's durable professional context so responses start from the right assumptions.
+---
+name: stephen-context
+description: Apply Stephen's durable professional context so responses start from the right assumptions
+---
 
 ## Identity and working style
 

@@ -16,6 +16,19 @@
       "command": ["memorix", "serve"]
     }
   },
+  "provider": {
+    "local-mlx": {
+      "name": "Local MLX",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        "lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-MLX-8bit": {
+          "name": "Qwen3 Local"
+        }
+      }
+    }
+  },
   "permission": {
     "*": "ask",
     "read": "allow",
@@ -53,8 +66,7 @@
       "cloud-instance-shapes": "allow",
       "github-actions-ci-debug": "allow",
       "design-doc-workflow": "allow",
-      "github-pr-template": "allow",
-      "github-pr-create": "allow"
+      "github-pr": "allow"
     },
     "external_directory": {
       "~/code/**": "allow",
@@ -62,7 +74,9 @@
       "/tmp/opencode-sandbox/**": "allow",
       "/private/tmp/opencode-sandbox/**": "allow",
       "/var/folders/**/T/opencode-sandbox/**": "allow",
-      "/private/var/folders/**/T/opencode-sandbox/**": "allow"
+      "/private/var/folders/**/T/opencode-sandbox/**": "allow",
+      "/tmp/claude-sandbox/**": "allow",
+      "/private/tmp/claude-sandbox/**": "allow"
     },
     "bash": {
       "git *": "ask",
@@ -155,7 +169,9 @@
       "rtk proxy *": "allow",
       "rtk rewrite *": "allow",
       "rtk verify*": "allow",
-      "rtk config*": "allow"
+      "rtk config*": "allow",
+      "mkdir /tmp/opencode-sandbox*": "allow",
+      "mkdir /tmp/claude-sandbox*": "allow"
     }
   }
 }

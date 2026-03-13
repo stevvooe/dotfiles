@@ -1,8 +1,7 @@
-# Skill: distributed-systems
-
-## Purpose
-
-Apply a rigorous distributed-systems lens for design, debugging, and implementation.
+---
+name: distributed-systems
+description: Apply a rigorous distributed-systems lens for design, debugging, and implementation
+---
 
 ## When to use
 

@@ -1,8 +1,7 @@
-# Skill: memorix-proactive
-
-## Purpose
-
-Run Memorix in proactive mode so durable context is captured and kept current.
+---
+name: memorix-proactive
+description: Run Memorix in proactive mode so durable context is captured and kept current
+---
 
 ## When to use
 

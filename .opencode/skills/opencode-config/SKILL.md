@@ -14,7 +14,8 @@ description: Configure OpenCode agents, commands, permissions, and workflow conv
 
 - Keep `AGENTS.md` as the source of truth for agent behavior.
 - If new behavior changes workflow, update `config/opencode/AGENTS.md` first, then agent files.
-- Prefer project-local OpenCode skills in `.opencode/skills/*/SKILL.md` for repo-specific workflows.
+- Global skills go in `config/opencode/skills/` (stows to `~/.config/opencode/skills/`).
+- Repo-specific skills go in `.opencode/skills/`.
 - Keep prompts concise and directive. Avoid long prose.
 - Follow phase gates from `AGENTS.md`: goals -> plan -> design -> build -> verify -> update.
 
