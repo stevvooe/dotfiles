@@ -212,7 +212,10 @@ wks() {
 
   if (( $# == 0 )) || [[ "$1" == "sw" ]] || [[ "$1" == "switch" ]]; then
     dest="$($wks_cmd "$@")" || return $?
-    [[ -n "$dest" ]] && cd "$dest"
+    if [[ -n "$dest" ]]; then
+      cd "$dest"
+      _wks_set_context "$dest"
+    fi
     return 0
   fi
 
@@ -251,6 +254,30 @@ _wks_workspace_names() {
   (( $#names )) && print -r -l -- $names
 }
 
+_wks_set_context() {
+  local dest=$1 row name path
+  local -a parts
+
+  for row in "${(@f)$(_wks_workspace_rows)}"; do
+    parts=("${(@ps:\t:)row}")
+    name="${parts[1]}"
+    path="${parts[4]}"
+    [[ -z "$name" || -z "$path" ]] && continue
+    if [[ "$path" == "$dest" ]]; then
+      export WKS_ROOT="$path"
+      if [[ "$name" == "main" ]]; then
+        unset WKS_NAME
+      else
+        export WKS_NAME="$name"
+      fi
+      return 0
+    fi
+  done
+
+  export WKS_ROOT="$dest"
+  unset WKS_NAME
+}
+
 _wks_complete_workspaces() {
   local row name branch state
   local -a parts plain described
@@ -282,6 +309,30 @@ _wks_oc_workspace_arg() {
   _wks_complete_workspaces
 }
 
+_wks_new_workspace_arg() {
+  _message "new workspace name"
+}
+
+_wks_has_new_flag() {
+  local token
+
+  for token in "${words[@]}"; do
+    [[ "$token" == --new || "$token" == --new=* ]] && return 0
+  done
+
+  return 1
+}
+
+_wks_has_new_name() {
+  local token
+
+  for token in "${words[@]}"; do
+    [[ "$token" == --new=* ]] && return 0
+  done
+
+  return 1
+}
+
 _wks_git_refs() {
   local -a refs
 
@@ -301,6 +352,7 @@ _wks_completion() {
     "rows:list workspace metadata"
     "sw:switch workspace"
     "switch:switch workspace"
+    "tmux:launch devtmux in workspace"
     "oc:open opencode in workspace"
     "rm:remove workspace"
     "path:print workspace path"
@@ -318,30 +370,110 @@ _wks_completion() {
     args)
       subcommand="${line[1]:-${words[2]}}"
       case "$subcommand" in
-        sw|switch|rm|path)
+        sw|switch|path)
           _wks_complete_workspaces
+          ;;
+        rm)
+          _arguments -s \
+            "-f[force remove dirty workspace]" \
+            "--force[force remove dirty workspace]" \
+            "--prune-branch[delete local branch after removal]" \
+            "1:workspace name:_wks_complete_workspaces"
           ;;
         new)
           _arguments -s \
-            "1:workspace name:" \
-            "--base[base ref]:git ref:_wks_git_refs"
+            "--fix[create fix/<user>/<name> branch]" \
+            "--feat[create feat/<user>/<name> branch]" \
+            "--branch[explicit branch name]:branch name:" \
+            "--base[base ref]:git ref:_wks_git_refs" \
+            "1:workspace name:_wks_new_workspace_arg"
+          ;;
+        tmux)
+          if _wks_has_new_flag; then
+            if _wks_has_new_name; then
+              _arguments -s \
+                "--new[create workspace first]" \
+                "--fix[create fix/<user>/<name> branch]" \
+                "--feat[create feat/<user>/<name> branch]" \
+                "--branch[explicit branch name]:branch name:" \
+                "--base[base ref for --new]:git ref:_wks_git_refs" \
+                "--help[show help]" \
+                "-h[show help]"
+            else
+              _arguments -s \
+                "--new[create workspace first]" \
+                "--fix[create fix/<user>/<name> branch]" \
+                "--feat[create feat/<user>/<name> branch]" \
+                "--branch[explicit branch name]:branch name:" \
+                "--base[base ref for --new]:git ref:_wks_git_refs" \
+                "--help[show help]" \
+                "-h[show help]" \
+                "1:workspace name:_wks_oc_workspace_arg"
+            fi
+          else
+            _arguments -s \
+              "--new[create workspace first]" \
+              "--help[show help]" \
+              "-h[show help]" \
+              "1:workspace name:_wks_oc_workspace_arg"
+          fi
           ;;
         oc)
-          _arguments -s \
-            "--new[create workspace first]" \
-            "--base[base ref for --new]:git ref:_wks_git_refs" \
-            "--continue[continue last session]" \
-            "--session[session id]:session id:" \
-            "--fork[fork session when continuing]" \
-            "--model[model]:model:" \
-            "--agent[agent]:agent:" \
-            "--prompt[prompt]:prompt:" \
-            "--help[show help]" \
-            "-c[continue last session]" \
-            "-s[session id]:session id:" \
-            "-m[model]:model:" \
-            "1:workspace name:_wks_oc_workspace_arg" \
-            "*:opencode args:"
+          if _wks_has_new_flag; then
+            if _wks_has_new_name; then
+              _arguments -s \
+                "--new[create workspace first]" \
+                "--fix[create fix/<user>/<name> branch]" \
+                "--feat[create feat/<user>/<name> branch]" \
+                "--branch[explicit branch name]:branch name:" \
+                "--base[base ref for --new]:git ref:_wks_git_refs" \
+                "--continue[continue last session]" \
+                "--session[session id]:session id:" \
+                "--fork[fork session when continuing]" \
+                "--model[model]:model:" \
+                "--agent[agent]:agent:" \
+                "--prompt[prompt]:prompt:" \
+                "--help[show help]" \
+                "-c[continue last session]" \
+                "-s[session id]:session id:" \
+                "-m[model]:model:" \
+                "*:opencode args:"
+            else
+              _arguments -s \
+                "--new[create workspace first]" \
+                "--fix[create fix/<user>/<name> branch]" \
+                "--feat[create feat/<user>/<name> branch]" \
+                "--branch[explicit branch name]:branch name:" \
+                "--base[base ref for --new]:git ref:_wks_git_refs" \
+                "--continue[continue last session]" \
+                "--session[session id]:session id:" \
+                "--fork[fork session when continuing]" \
+                "--model[model]:model:" \
+                "--agent[agent]:agent:" \
+                "--prompt[prompt]:prompt:" \
+                "--help[show help]" \
+                "-c[continue last session]" \
+                "-s[session id]:session id:" \
+                "-m[model]:model:" \
+                "1:workspace name:_wks_oc_workspace_arg" \
+                "*:opencode args:"
+            fi
+          else
+            _arguments -s \
+              "--new[create workspace first]" \
+              "--continue[continue last session]" \
+              "--session[session id]:session id:" \
+              "--fork[fork session when continuing]" \
+              "--model[model]:model:" \
+              "--agent[agent]:agent:" \
+              "--prompt[prompt]:prompt:" \
+              "--help[show help]" \
+              "-c[continue last session]" \
+              "-s[session id]:session id:" \
+              "-m[model]:model:" \
+              "1:workspace name:_wks_oc_workspace_arg" \
+              "*:opencode args:"
+          fi
           ;;
       esac
       ;;

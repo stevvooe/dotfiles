@@ -10,7 +10,7 @@ usage() {
   cat <<'EOF'
 Usage:
   wks                  # interactive switch (fzf)
-  wks ls
+  wks ls [--status]
   wks new <name> [--base <ref>]
   wks new --fix <name> [--base <ref>]
   wks new --feat <name> [--base <ref>]
@@ -19,22 +19,29 @@ Usage:
   wks rows
   wks sw [name]
   wks switch [name]
+  wks tmux [name]
+  wks tmux --new <name> [--base <ref>]
+  wks tmux --new --fix <name> [--base <ref>]
+  wks tmux --new --feat <name> [--base <ref>]
+  wks tmux --new <name> --branch <branch> [--base <ref>]
   wks oc [name] [-- <opencode-args...>]
   wks oc --new <name> [--base <ref>] [-- <opencode-args...>]
   wks oc --new --fix <name> [--base <ref>] [-- <opencode-args...>]
   wks oc --new --feat <name> [--base <ref>] [-- <opencode-args...>]
   wks oc --new <name> --branch <branch> [--base <ref>] [-- <opencode-args...>]
-  wks rm <name> [--force]
+  wks rm <name> [--force] [--prune-branch]
   wks path [name]
 
 Commands:
-  ls                   List main + .workspaces worktrees
+  ls [--status]        List worktrees (--status adds dirty/clean check)
   new                  Create .workspaces/<name> from --base (default: origin/HEAD)
   names                Print workspace names (for scripting/completion)
   rows                 Print tab-delimited workspace rows (name, branch, state, path)
   sw, switch           Print selected workspace path (fzf when no name)
+  tmux                 Launch devtmux in a workspace; use --new to create first
   oc                   Launch opencode in a workspace; use --new to create first
   rm                   Remove workspace worktree (refuses dirty unless --force)
+                       --prune-branch deletes the local branch after removal
   path                 Print current workspace root, or named workspace path
 
 Notes:
@@ -98,24 +105,46 @@ state_for_path() {
 }
 
 workspace_rows() {
-  local path name branch state
+  local with_state=0
+  if [ "${1:-}" = "--with-state" ]; then
+    with_state=1
+  fi
 
-  path=$main_root
-  name=main
-  branch=$(branch_for_path "$path")
-  state=$(state_for_path "$path")
-  printf '%s\t%s\t%s\t%s\n' "$name" "$branch" "$state" "$path"
+  local -a ws_paths ws_names
+  ws_paths=("$main_root")
+  ws_names=("main")
 
   if [ -d "$workspaces_dir" ]; then
     for path in "$workspaces_dir"/*; do
       [ -d "$path" ] || continue
       git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
-
-      name=$(basename "$path")
-      branch=$(branch_for_path "$path")
-      state=$(state_for_path "$path")
-      printf '%s\t%s\t%s\t%s\n' "$name" "$branch" "$state" "$path"
+      ws_paths+=("$path")
+      ws_names+=("$(basename "$path")")
     done
+  fi
+
+  local tmpdir=
+  if [ "$with_state" -eq 1 ]; then
+    tmpdir=$(mktemp -d)
+    for i in "${!ws_paths[@]}"; do
+      ( state_for_path "${ws_paths[$i]}" >"$tmpdir/$i" ) &
+    done
+    wait
+  fi
+
+  local i branch state
+  for i in "${!ws_paths[@]}"; do
+    branch=$(branch_for_path "${ws_paths[$i]}")
+    if [ "$with_state" -eq 1 ]; then
+      state=$(<"$tmpdir/$i")
+    else
+      state="-"
+    fi
+    printf '%s\t%s\t%s\t%s\n' "${ws_names[$i]}" "$branch" "$state" "${ws_paths[$i]}"
+  done
+
+  if [ -n "$tmpdir" ]; then
+    rm -rf "$tmpdir"
   fi
 }
 
@@ -269,15 +298,57 @@ consume_option_value() {
   printf '%s\n' "$1"
 }
 
-cmd_ls() {
-  local name branch state path marker
+devtmux_cmd() {
+  local cmd
 
-  workspace_rows | while IFS=$'\t' read -r name branch state path; do
+  cmd=$(command -v devtmux 2>/dev/null || true)
+  if [ -z "$cmd" ] && [ -x "$main_root/bin/devtmux" ]; then
+    cmd=$main_root/bin/devtmux
+  fi
+
+  if [ -z "$cmd" ]; then
+    emsg "error: devtmux not found in PATH"
+    exit 1
+  fi
+
+  printf '%s\n' "$cmd"
+}
+
+launch_devtmux() {
+  local path=$1
+  local cmd name
+
+  cmd=$(devtmux_cmd)
+  if [ "$path" = "$main_root" ]; then
+    cd "$path"
+    exec env WKS_ROOT="$path" "$cmd"
+  fi
+
+  name=$(basename "$path")
+  cd "$path"
+  exec env WKS_NAME="$name" WKS_ROOT="$path" "$cmd"
+}
+
+cmd_ls() {
+  local name branch state path marker with_state_flag=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --status) with_state_flag="--with-state"; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  workspace_rows $with_state_flag | while IFS=$'\t' read -r name branch state path; do
     marker=' '
     if [ "$path" = "$current_root" ]; then
       marker='*'
     fi
-    printf '%s %-16s %-24s %-6s %s\n' "$marker" "$name" "$branch" "$state" "$path"
+    if [ -n "$with_state_flag" ]; then
+      printf '%s %-16s %-24s %-6s %s\n' "$marker" "$name" "$branch" "$state" "$path"
+    else
+      printf '%s %-16s %-24s %s\n' "$marker" "$name" "$branch" "$path"
+    fi
   done
 }
 
@@ -286,7 +357,16 @@ cmd_names() {
 }
 
 cmd_rows() {
-  workspace_rows
+  local with_state_flag=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --status) with_state_flag="--with-state"; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  workspace_rows $with_state_flag
 }
 
 cmd_switch() {
@@ -308,7 +388,7 @@ pick_workspace_path() {
     exit 1
   fi
 
-  selected=$(workspace_rows | fzf --prompt='workspace> ' --height=50% --layout=reverse --delimiter=$'\t' --with-nth=1,2,3)
+  selected=$(workspace_rows | fzf --prompt='workspace> ' --height=50% --layout=reverse --delimiter=$'\t' --with-nth=1,2)
   if [ -z "$selected" ]; then
     exit 1
   fi
@@ -464,6 +544,139 @@ cmd_oc() {
   exec opencode "$path" "$@"
 }
 
+cmd_tmux() {
+  local name path create_new base branch branch_kind explicit_branch base_explicit
+
+  name=
+  create_new=0
+  base=
+  branch=
+  branch_kind=
+  explicit_branch=
+  base_explicit=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --new)
+        create_new=1
+        shift
+        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+          name=$1
+          shift
+        fi
+        ;;
+      --new=*)
+        create_new=1
+        name=${1#--new=}
+        shift
+        ;;
+      --base)
+        shift
+        if [ $# -eq 0 ]; then
+          emsg "error: --base requires a ref"
+          exit 1
+        fi
+        base=$1
+        base_explicit=1
+        shift
+        ;;
+      --branch)
+        shift
+        explicit_branch=$(consume_option_value --branch "branch name" "$@")
+        shift
+        ;;
+      --branch=*)
+        explicit_branch=${1#--branch=}
+        if [ -z "$explicit_branch" ]; then
+          emsg "error: --branch requires a branch name"
+          exit 1
+        fi
+        shift
+        ;;
+      --fix)
+        shift
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        if [ -n "$name" ]; then
+          continue
+        fi
+        name=$(consume_option_value --fix "workspace name" "$@")
+        shift
+        ;;
+      --fix=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" fix)
+        name=${1#--fix=}
+        shift
+        ;;
+      --feat)
+        shift
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        if [ -n "$name" ]; then
+          continue
+        fi
+        name=$(consume_option_value --feat "workspace name" "$@")
+        shift
+        ;;
+      --feat=*)
+        if [ -n "$name" ]; then
+          emsg "error: workspace name already set to '$name'"
+          exit 1
+        fi
+        branch_kind=$(set_branch_kind "$branch_kind" feat)
+        name=${1#--feat=}
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -* )
+        emsg "error: unknown option '$1'"
+        exit 1
+        ;;
+      *)
+        if [ -n "$name" ]; then
+          emsg "error: unexpected extra argument '$1'"
+          exit 1
+        fi
+        name=$1
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$create_new" -eq 1 ]; then
+    if [ -z "$name" ]; then
+      emsg "error: --new requires a workspace name"
+      exit 1
+    fi
+    if [ "$base_explicit" -eq 0 ]; then
+      base=$(default_workspace_base)
+    fi
+    branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
+    path=$(cmd_new "$name" --base "$base" --branch "$branch")
+  else
+    if [ "$base_explicit" -eq 1 ]; then
+      emsg "error: --base can only be used with --new"
+      exit 1
+    fi
+    if [ -n "$explicit_branch" ] || [ -n "$branch_kind" ]; then
+      emsg "error: --branch, --fix, and --feat can only be used with --new"
+      exit 1
+    fi
+    if [ -n "$name" ]; then
+      path=$(resolve_workspace_path "$name")
+    else
+      path=$(pick_workspace_path)
+    fi
+  fi
+
+  launch_devtmux "$path"
+}
+
 cmd_new() {
   local name base branch target branch_kind explicit_branch
 
@@ -575,17 +788,11 @@ cmd_new() {
 }
 
 cmd_rm() {
-  local name force path
+  local name force prune_branch path branch
 
-  if [ $# -lt 1 ]; then
-    emsg "error: missing workspace name"
-    usage
-    exit 1
-  fi
-
-  name=$1
-  shift
+  name=
   force=0
+  prune_branch=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -593,12 +800,30 @@ cmd_rm() {
         force=1
         shift
         ;;
-      *)
+      --prune-branch)
+        prune_branch=1
+        shift
+        ;;
+      -*)
         emsg "error: unknown option '$1'"
         exit 1
         ;;
+      *)
+        if [ -n "$name" ]; then
+          emsg "error: unexpected extra argument '$1'"
+          exit 1
+        fi
+        name=$1
+        shift
+        ;;
     esac
   done
+
+  if [ -z "$name" ]; then
+    emsg "error: missing workspace name"
+    usage
+    exit 1
+  fi
 
   path=$(resolve_workspace_path "$name")
 
@@ -612,6 +837,8 @@ cmd_rm() {
     exit 1
   fi
 
+  branch=$(branch_for_path "$path")
+
   if [ $force -eq 1 ]; then
     git worktree remove --force "$path"
   else
@@ -619,6 +846,12 @@ cmd_rm() {
   fi
 
   git worktree prune >/dev/null 2>&1 || true
+
+  if [ "$prune_branch" -eq 1 ] && [ -n "$branch" ] && [[ "$branch" != detached@* ]]; then
+    if git show-ref --verify --quiet "refs/heads/$branch"; then
+      git branch -D "$branch"
+    fi
+  fi
 }
 
 cmd_path() {
@@ -662,8 +895,11 @@ main() {
     sw|switch)
       cmd_switch "$@"
       ;;
-    oc)
+     oc)
       cmd_oc "$@"
+      ;;
+    tmux)
+      cmd_tmux "$@"
       ;;
     rm)
       cmd_rm "$@"

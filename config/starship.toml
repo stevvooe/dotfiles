@@ -17,11 +17,18 @@ right_format = """$rust$golang$python$cmd_duration$time"""
 
 [directory]
 format = "[$path]($style)[$read_only]($read_only_style) "
+repo_root_format = "[$before_root_path]($before_repo_root_style)[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) "
 style = "bold lavender"
-truncation_length = 5
+before_repo_root_style = "overlay1"
+repo_root_style = "bold lavender"
+truncation_length = 8
+truncation_symbol = "…/"
 truncate_to_repo = false
 fish_style_pwd_dir_length = 0
 read_only = " \U000f033e"
+
+[directory.substitutions]
+".workspaces/" = " :: "
 
 [git_branch]
 symbol = "\uf126"

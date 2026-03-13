@@ -23,6 +23,27 @@ repo_root() {
   fi
 }
 
+workspace_root() {
+  local cwd=${PWD:-}
+  local root=${WKS_ROOT:-}
+
+  if [ -z "$root" ] || [ -z "${WKS_NAME:-}" ]; then
+    return 1
+  fi
+
+  root=$(cd "$root" 2>/dev/null && pwd -P) || return 1
+  cwd=$(pwd -P)
+
+  case "$cwd" in
+    "$root"|"$root"/*)
+      printf '%s\n' "$root"
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 github_repo_slug() {
   local remote_url slug
 
@@ -77,21 +98,23 @@ main() {
   local root base_name repo_slug session_source session
 
   require_cmd tmux
-  require_cmd nvim
-  require_cmd opencode
 
-  root=$(repo_root)
-  base_name=$(basename "$root")
-  repo_slug=$(github_repo_slug || true)
-  session_source=${repo_slug:-$base_name}
+  root=$(workspace_root || repo_root)
+  if [ -n "${WKS_NAME:-}" ] && [ "$root" = "$(workspace_root 2>/dev/null || true)" ]; then
+    session_source=$WKS_NAME
+  else
+    base_name=$(basename "$root")
+    repo_slug=$(github_repo_slug || true)
+    session_source=${repo_slug:-$base_name}
+  fi
   session=$(sanitize_session_name "$session_source")
 
   if ! tmux has-session -t "$session" 2>/dev/null; then
-    tmux new-session -d -s "$session" -n nvim -c "$root" 'nvim .'
-    tmux split-window -h -t "$session":nvim -c "$root" 'opencode'
+    tmux new-session -d -s "$session" -n dev -c "$root"
+    tmux split-window -h -t "$session":dev -c "$root"
     tmux new-window -t "$session":2 -n zsh -c "$root"
-    tmux select-window -t "$session":nvim
-    tmux select-pane -t "$session":nvim.1
+    tmux select-window -t "$session":dev
+    tmux select-pane -t "$session":dev.1
   fi
 
   if [ -n "${TMUX:-}" ]; then
