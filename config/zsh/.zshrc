@@ -197,6 +197,39 @@ opencode() {
   MEMORIX_PROJECT_ROOT="$project_root" "$opencode_cmd" "$@"
 }
 
+# hdi - "how do I" inline AI shell helper
+# Sends a question (with recent shell history for context) to opencode's
+# shell-helper agent and offers to load the suggested command into the prompt.
+hdi() {
+  if (( $# == 0 )); then
+    print -u2 "usage: hdi <question>"
+    return 1
+  fi
+
+  local history_ctx
+  history_ctx=$(fc -ln -20 | sed 's/^[[:space:]]*//')
+
+  local raw cmd
+  raw=$(opencode run --agent shell-helper \
+    "Recent shell history:
+${history_ctx}
+
+Working directory: ${PWD}
+OS: $(uname -s)
+Question: $*" 2>/dev/null)
+
+  # Strip markdown fences and surrounding whitespace
+  cmd=$(echo "$raw" | sed '/^```/d' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^$')
+
+  if [[ -z "$cmd" ]]; then
+    print -u2 "No suggestion returned."
+    return 1
+  fi
+
+  echo "$cmd"
+  read -q "?Run? [y/N] " && { echo; print -z "$cmd"; } || echo
+}
+
 wks() {
   local wks_cmd dest
 
