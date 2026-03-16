@@ -10,6 +10,8 @@ permission:
     "*": ask
     "cargo bench*": allow
     "go test -bench*": allow
+    "rtk cargo bench*": allow
+    "rtk go test -bench*": allow
     "grep *": allow
     "rg *": allow
 ---

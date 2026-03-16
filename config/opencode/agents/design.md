@@ -3,7 +3,10 @@ description: Creates and updates design docs and keeps them aligned with impleme
 mode: subagent
 temperature: 0.1
 permission:
-  edit: ask
+  edit:
+    "*": ask
+    ".ai/*": allow
+    ".ai/**/*": allow
   bash:
     "*": deny
 ---

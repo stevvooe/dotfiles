@@ -22,11 +22,12 @@ The dotfiles repo lives at `~/.dotfiles` and uses GNU Stow for symlinking:
 - `runcoms/` -> stows to `~/` (shell startup files like `.zshenv`, `.fzf.zsh`)
 - `bin/` -> stows to `~/bin/` (custom scripts)
 - `Brewfile` -> Homebrew packages (CLI tools, casks, taps)
-- `Makefile` -> orchestrates setup (brew, link, ssh, gpg, git, zsh, go, rust, npm, nvim)
+- `Makefile` -> orchestrates setup (brew, link, ssh, gpg, git, go, rust, npm)
 - `npm-global-packages.txt` -> global npm packages
-- `opencode.json` -> OpenCode config (MCP servers, permissions, theme)
+- `config/opencode/opencode.json` -> OpenCode config (MCP servers, permissions)
 - `config/opencode/agents/` -> OpenCode subagent definitions
 - `config/opencode/commands/` -> OpenCode custom commands
+- `config/opencode/skills/` -> global OpenCode skills
 
 Before making changes, explain what you're adding and where it goes. Wait for confirmation.
 

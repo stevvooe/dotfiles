@@ -12,10 +12,16 @@ permission:
     "git log*": allow
     "git show*": allow
     "git blame*": allow
+    "rtk git diff*": allow
+    "rtk git log*": allow
+    "rtk git show*": allow
+    "rtk git blame*": allow
     "grep *": allow
     "rg *": allow
     "cargo test*": allow
     "go test*": allow
+    "rtk cargo test*": allow
+    "rtk go test*": allow
 ---
 
 You are a debugger. Find the root cause, not the symptom. Follow the conventions in the project's AGENTS.md file.

@@ -10,6 +10,10 @@ permission:
     "cargo clippy*": allow
     "go test*": allow
     "golangci-lint*": allow
+    "rtk cargo test*": allow
+    "rtk cargo clippy*": allow
+    "rtk go test*": allow
+    "rtk golangci-lint*": allow
     "grep *": allow
     "rg *": allow
 ---
