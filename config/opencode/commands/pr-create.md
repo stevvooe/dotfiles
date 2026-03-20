@@ -10,4 +10,12 @@ Arguments:
 - `$1` = base branch (optional; omit to infer `main` then `master`)
 - `$2` = max commit count for context (optional, defaults to `30`)
 
-Draft the PR, propose the command, and confirm before executing.
+Draft the PR, propose the command, and stop.
+
+Rules:
+- First refresh remote-tracking refs with `git fetch origin`.
+- Analyze against `origin/main` then `origin/master` unless the user explicitly provided a different base.
+- Do not run `gh pr create`, `gh pr edit`, `gh pr merge`, `gh pr close`, or any other mutating GitHub command in this drafting step.
+- Do not run `git push` in this drafting step.
+- Only present the title, body, and exact command to the user.
+- Execution requires a separate, explicit user instruction to create/open the PR in that turn.

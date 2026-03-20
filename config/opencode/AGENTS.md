@@ -13,12 +13,14 @@
 
 ## Workflow
 
+- Rule precedence: user instructions override everything. Repo-local skills provide repository-specific guidance and conventions. Global skills define the required process, execution model, and permission gates. When repo-local guidance conflicts with a global process or safety rule, follow the global process and safety rule, while still using the repo-local guidance where compatible. If ambiguity remains, stop and ask before taking action.
 - Follow phase gates: goals -> plan -> design -> build -> verify -> update.
 - Goals are stable. Design evolves. Keep them separate.
 - Before writing code, establish goals and a plan. For non-trivial work, write them to `.ai/` (gitignored) or a design doc.
 - Use `/todo` to capture follow-ups without interrupting current work.
 - Use `/commit-message` to draft conventional commit messages from staged changes only.
 - Use `/pr-create` to draft a PR and propose a `gh pr create` command in one response.
+- Treat `gh pr create` as an explicit permission-gated action. Drafting, summarizing, and proposing the command are allowed; executing `gh pr create` is only allowed when the user explicitly asks to create/open the PR in that turn.
 - Use `/design-sync` to sync design docs with current decisions without derailing implementation.
 - When completing a `TODO.md` item, check it off.
 
@@ -52,6 +54,8 @@
 - Read-only git commands are fine: `log`, `status`, `diff`, `show`, `blame`, etc.
 - Never run commands that mutate the repository: no commits, pushes, rebases, amends, resets, or checkouts.
 - When asked to commit, suggest a commit message in the repository's existing style, but do not execute it.
+- Treat GitHub write actions as permission-gated too: do not run `gh pr create`, `gh pr edit`, `gh pr merge`, `gh pr close`, or similar mutating `gh` commands unless the user explicitly requests that action.
+- If the working directory is a git worktree, all file reads and edits must target files in that worktree — not the main checkout. Use the working directory as the base for all paths.
 
 ## Subagents
 

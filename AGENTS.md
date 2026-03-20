@@ -29,6 +29,7 @@
 ## Skills
 
 - For OpenCode setup in this repo (`config/opencode/*`), load `opencode-config`.
+- For inspecting OpenCode session data in the local SQLite database, load `opencode-db-inspect`.
 - For stow/layout changes, load `dotfiles-stow`.
 - For `Brewfile` edits, load `brewfile-maintenance`.
 - For shell setup (`config/zsh`, `runcoms`), load `shell-config`.
@@ -46,3 +47,4 @@
 - Do not edit machine-specific git include files: `config/git/signingkey.inc`, `config/git/email.inc`.
 - Do not use Python (or one-off scripts) to read/write/edit files when applying repo changes. Use patch/diff-based edits via the editing tools so changes stay reviewable.
 - Keep changes minimal and scoped; avoid unrelated cleanup.
+- When unsure how OpenCode config or permissions work, check the docs at https://opencode.ai/docs/ before guessing. Load the `opencode-config` skill for reference links.
