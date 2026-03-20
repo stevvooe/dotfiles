@@ -8,3 +8,4 @@ config/zsh/.zsh_sessions/
 config/zsh/.zcompdump*
 config/opencode/node_modules
 config/tmux/plugins/
+**/*.log
