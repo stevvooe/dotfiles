@@ -23,6 +23,5 @@ return {
   { import = "plugins.sleuth" },
   { import = "plugins.undotree" },
   { import = "plugins.fidget" },
-  { import = "plugins.claude-code" },
   { import = "plugins.markdown-preview" },
 }
