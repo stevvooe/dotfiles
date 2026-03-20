@@ -17,6 +17,7 @@ Usage:
   wks new <name> --branch <branch> [--base <ref>]
   wks names
   wks rows
+  wks diff [name]
   wks sw [name]
   wks switch [name]
   wks tmux [name]
@@ -37,6 +38,7 @@ Commands:
   new                  Create .workspaces/<name> from --base (default: origin/HEAD)
   names                Print workspace names (for scripting/completion)
   rows                 Print tab-delimited workspace rows (name, branch, state, path)
+  diff                 Show git status and diff for a workspace
   sw, switch           Print selected workspace path (fzf when no name)
   tmux                 Launch devtmux in a workspace; use --new to create first
   oc                   Launch opencode in a workspace; use --new to create first
@@ -367,6 +369,47 @@ cmd_rows() {
   done
 
   workspace_rows $with_state_flag
+}
+
+cmd_diff() {
+  local name=${1:-} path status_output unstaged_diff staged_diff
+
+  if [ $# -gt 1 ]; then
+    emsg "error: unexpected extra argument '$2'"
+    exit 1
+  fi
+
+  if [ -n "$name" ]; then
+    path=$(resolve_workspace_path "$name")
+  else
+    path=$current_root
+  fi
+
+  status_output=$(git -C "$path" status --short --branch)
+  unstaged_diff=$(git -C "$path" diff)
+  staged_diff=$(git -C "$path" diff --cached)
+
+  printf 'Workspace: %s\n' "$path"
+  printf '\n== Status ==\n'
+  if [ -n "$status_output" ]; then
+    printf '%s\n' "$status_output"
+  else
+    printf 'working tree clean\n'
+  fi
+
+  printf '\n== Unstaged Diff ==\n'
+  if [ -n "$unstaged_diff" ]; then
+    printf '%s\n' "$unstaged_diff"
+  else
+    printf 'No unstaged changes.\n'
+  fi
+
+  printf '\n== Staged Diff ==\n'
+  if [ -n "$staged_diff" ]; then
+    printf '%s\n' "$staged_diff"
+  else
+    printf 'No staged changes.\n'
+  fi
 }
 
 cmd_switch() {
@@ -891,6 +934,9 @@ main() {
       ;;
     rows)
       cmd_rows "$@"
+      ;;
+    diff)
+      cmd_diff "$@"
       ;;
     sw|switch)
       cmd_switch "$@"
