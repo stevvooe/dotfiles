@@ -17,8 +17,8 @@ fi
 current_session=$(tmux display-message -p '#S')
 
 selection=$(
-  tmux list-sessions -F '#{session_name}	#{session_windows}	#{?session_attached,attached,detached}' |
-    while IFS=$'\t' read -r session windows state; do
+  tmux list-sessions -F '#{session_name}	#{session_windows}	#{?session_attached,attached,detached}	#{session_activity}' |
+    while IFS=$'\t' read -r session windows state activity; do
       if [ "$session" = "$current_session" ]; then
         order=0
         marker="${ctp_mauve}>${ctp_reset}"
@@ -34,10 +34,10 @@ selection=$(
         state_label="${ctp_subtext}$(printf '%-8.8s' "$state")${ctp_reset}"
       fi
       windows_label="${ctp_subtext}$(printf '%2s windows' "$windows")${ctp_reset}"
-      printf '%s\t%s\t%s %s  %s  %s\n' "$order" "$session" "$marker" "$session_label" "$windows_label" "$state_label"
+      printf '%s\t%s\t%s\t%s %s  %s  %s\n' "$order" "$activity" "$session" "$marker" "$session_label" "$windows_label" "$state_label"
     done |
-    sort -t $'\t' -k1,1n -k2,2 |
-    cut -f2- |
+    sort -t $'\t' -k1,1n -k2,2rn -k3,3 |
+    cut -f3- |
     fzf --ansi --color="$fzf_colors" --prompt='session> ' --header='enter switch  esc cancel' --height=100% --layout=reverse --border=rounded --delimiter=$'\t' --with-nth=2
 )
 

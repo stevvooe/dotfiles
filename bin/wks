@@ -30,6 +30,7 @@ Usage:
   wks oc --new --fix <name> [--base <ref>] [-- <opencode-args...>]
   wks oc --new --feat <name> [--base <ref>] [-- <opencode-args...>]
   wks oc --new <name> --branch <branch> [--base <ref>] [-- <opencode-args...>]
+  wks rename <old> <new>
   wks rm <name> [--force] [--prune-branch]
   wks path [name]
 
@@ -42,6 +43,7 @@ Commands:
   sw, switch           Print selected workspace path (fzf when no name)
   tmux                 Launch devtmux in a workspace; use --new to create first
   oc                   Launch opencode in a workspace; use --new to create first
+  rename               Rename workspace directory, wks/* branch, and tmux session
   rm                   Remove workspace worktree (refuses dirty unless --force)
                        --prune-branch deletes the local branch after removal
   path                 Print current workspace root, or named workspace path
@@ -830,6 +832,54 @@ cmd_new() {
   printf '%s\n' "$target"
 }
 
+cmd_rename() {
+  local old_name new_name old_path new_path branch new_branch
+
+  old_name=${1:-}
+  new_name=${2:-}
+
+  if [ -z "$old_name" ] || [ -z "$new_name" ]; then
+    emsg "error: usage: wks rename <old> <new>"
+    exit 1
+  fi
+
+  if [ $# -gt 2 ]; then
+    emsg "error: unexpected extra argument '$3'"
+    exit 1
+  fi
+
+  if [ "$old_name" = "main" ]; then
+    emsg "error: cannot rename main workspace"
+    exit 1
+  fi
+
+  validate_workspace_name "$new_name"
+  old_path=$(resolve_workspace_path "$old_name")
+  new_path="$workspaces_dir/$new_name"
+
+  if [ -e "$new_path" ]; then
+    emsg "error: workspace '$new_name' already exists"
+    exit 1
+  fi
+
+  git worktree move "$old_path" "$new_path"
+
+  branch=$(branch_for_path "$new_path")
+  if [ "$branch" = "wks/$old_name" ]; then
+    new_branch="wks/$new_name"
+    validate_branch_name "$new_branch"
+    git branch -m "$branch" "$new_branch"
+    emsg "renamed branch $branch -> $new_branch"
+  fi
+
+  if command -v tmux >/dev/null 2>&1 && tmux has-session -t "=$old_name" 2>/dev/null; then
+    tmux rename-session -t "=$old_name" "$new_name"
+    emsg "renamed tmux session $old_name -> $new_name"
+  fi
+
+  emsg "renamed workspace $old_name -> $new_name"
+}
+
 cmd_rm() {
   local name force prune_branch path branch
 
@@ -946,6 +996,9 @@ main() {
       ;;
     tmux)
       cmd_tmux "$@"
+      ;;
+    rename)
+      cmd_rename "$@"
       ;;
     rm)
       cmd_rm "$@"
