@@ -23,3 +23,6 @@ if [[ "$(uname)" == "Darwin" ]]; then
 
   unset _clang_dir
 fi
+
+# Raise open-file limit for builds and tools that exhaust the macOS default (256).
+ulimit -n 4096
