@@ -97,6 +97,8 @@ Agents should suggest delegating to other agents when their findings cross into 
 - Load `cloud-instance-shapes` when comparing cloud or neo-cloud machine types.
 - Load `github-actions-ci-debug` for broken GitHub Actions CI triage.
 - Load `rtk` for token savings plugin behavior, output compression debugging, or rtk command reference.
+- Load `human-docs` when writing or updating READMEs, design docs, protocol specs, ADRs, runbooks, or API guides — any checked-in markdown for human readers.
+- Load `agent-docs` when writing or updating AGENTS.md, skill files, `.ai/` plans, agent instructions, or system prompts — any markdown consumed by LLM agents.
 
 ## Code Philosophy
 
