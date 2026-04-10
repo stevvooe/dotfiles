@@ -6,8 +6,10 @@ permission:
   edit: ask
   bash:
     "*": ask
+    "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
+    "rtk cargo clippy*": allow
     "rtk cargo test*": allow
     "rtk go test*": allow
     "grep *": allow
@@ -24,6 +26,8 @@ Process:
 3. Present the migration plan with breaking changes and required updates
 4. Implement changes one module at a time after confirmation
 5. Run tests after each module to catch regressions early
+
+Before running repo-level test, build, lint, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
 
 Rules:
 - Never upgrade multiple unrelated dependencies in one pass

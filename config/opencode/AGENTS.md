@@ -43,6 +43,13 @@
 - Use `@design` for doc creation, sync, or cross-doc updates. Use `/design-sync` for quick alignment.
 - Before closing a task, verify the active design reflects shipped behavior and follow-ups are in `TODO.md`.
 
+### Task runners
+
+- Before running build, test, lint, typecheck, format, or benchmark commands, check whether the repository uses a workspace task runner.
+- If the repository uses `moon` for the workflow, prefer `moon run ...` over direct language-native commands.
+- Use the underlying language or package tool when the task is low-level, `moon` does not expose the workflow, or the user explicitly asks for the underlying command.
+- When unsure, inspect repo config before defaulting to language-native commands.
+
 ### Sandbox
 
 - Use `/tmp/opencode-sandbox` for throwaway experiments and temporary scripts.
@@ -182,7 +189,9 @@ Agents should suggest delegating to other agents when their findings cross into 
 ### Style
 
 - Write idiomatic Rust. If you don't know the correct pattern, look it up before writing bad code.
-- Follow `rustfmt`. Respect `clippy` output. Run with `--all-targets`.
+- Run `rustfmt`.
+- Run `clippy` with `--all-targets` for Rust changes and fix findings unless there is a clear reason not to.
+- Leave the codebase with no new Rust compiler warnings.
 - Prefer borrowing over cloning. `clone()` on a hot path is a code smell. If you're cloning to appease the borrow checker, rethink ownership.
 - Use `Cow<'_, str>` and `Cow<'_, [u8]>` when you might or might not need to own the data.
 - Prefer iterator chains over manual loops. They compose, they're lazy, and LLVM optimizes them well.

@@ -30,6 +30,8 @@ Process:
 3. Run tests after each change to confirm nothing broke
 4. Repeat until done
 
+Before running repo-level test, lint, build, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
+
 Focus on:
 - Collapsing redundant types or abstractions that don't earn their keep
 - Removing dead code and unused exports

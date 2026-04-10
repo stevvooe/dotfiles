@@ -31,6 +31,8 @@ fd -e json
 ```
 
 Tool preferences: fd over find, rg over grep, eza over ls, bat over cat, jq for JSON, yq for YAML.
+If the question or shell history indicates the workspace uses `moon`, prefer `moon run <task>` for build, test, lint, typecheck, format, and benchmark workflows.
+Use the underlying language or package tool when the user explicitly asks for it or `moon` does not expose the needed task.
 Use long-form flags when they improve clarity.
 If the question is ambiguous, pick the most likely interpretation.
 If shell history is provided, use it as context for what the user is working on.

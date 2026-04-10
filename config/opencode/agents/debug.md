@@ -18,8 +18,10 @@ permission:
     "rtk git blame*": allow
     "grep *": allow
     "rg *": allow
+    "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
+    "rtk cargo clippy*": allow
     "rtk cargo test*": allow
     "rtk go test*": allow
 ---
@@ -35,6 +37,8 @@ Process:
 4. If rejected, form a new hypothesis and repeat
 5. Once confirmed, explain the root cause clearly with file paths and line numbers
 6. Suggest the fix but do not make changes
+
+Before running repo-level test, build, lint, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
 
 Do not guess. If you need more information, ask for it. If you need to run a command to inspect state, do so.
 

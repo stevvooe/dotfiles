@@ -7,10 +7,12 @@ permission:
   bash:
     "*": ask
     "cargo bench*": allow
+    "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
     "go test -bench*": allow
     "rtk cargo bench*": allow
+    "rtk cargo clippy*": allow
     "rtk cargo test*": allow
     "rtk go test*": allow
     "rtk go test -bench*": allow
@@ -31,6 +33,8 @@ Process:
 4. Implement the optimization after confirmation
 5. Run benchmarks to verify the improvement
 6. Report before/after numbers
+
+Before running repo-level benchmark, test, build, or lint commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
 
 Priorities:
 - Eliminate unnecessary buffer copies and allocations first

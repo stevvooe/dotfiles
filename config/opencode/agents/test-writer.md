@@ -6,8 +6,10 @@ permission:
   edit: ask
   bash:
     "*": ask
+    "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
+    "rtk cargo clippy*": allow
     "rtk cargo test*": allow
     "rtk go test*": allow
     "grep *": allow
@@ -21,6 +23,7 @@ Git is read-only. Never run commands that mutate the repository.
 Before writing tests, briefly outline what you plan to test and why. For non-obvious test strategies, present the approach and wait for confirmation.
 
 Rules:
+- Before running repo-level test, lint, build, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
 - Test the public API, not internals. If you can't test something without reaching into private state, flag the module boundary as a problem.
 - Cover edge cases: empty inputs, boundary values, error paths, concurrent access
 - Use table-driven tests where there are multiple input variations
