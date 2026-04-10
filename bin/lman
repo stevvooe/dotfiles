@@ -1,0 +1,339 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+data_root="${XDG_DATA_HOME:-$HOME/.local/share}/lman"
+
+main_repo_url="https://github.com/mkerrisk/man-pages.git"
+main_repo_dir="$data_root/man-pages"
+main_stamp_file="$data_root/.last-update-man-pages"
+
+liburing_repo_url="https://github.com/axboe/liburing.git"
+liburing_repo_dir="$data_root/liburing"
+liburing_stamp_file="$data_root/.last-update-liburing"
+
+lock_dir="$data_root/.lock"
+lock_meta_file="$lock_dir/meta"
+update_days="${LMAN_UPDATE_DAYS:-7}"
+lock_timeout_seconds=30
+
+emsg() {
+  printf '%s\n' "$*" >&2
+}
+
+usage() {
+  cat <<'EOF'
+Usage: lman [--sync] [--no-sync] [section] name
+
+Examples:
+  lman open
+  lman 2 open
+  lman 3 printf
+  lman --sync 2 io_uring_enter
+EOF
+}
+
+touch_stamp() {
+  local stamp_file=$1
+
+  mkdir -p "$data_root"
+  : >"$stamp_file"
+}
+
+process_command() {
+  local pid=$1
+  local line
+
+  line=$(ps -o command= -p "$pid" 2>/dev/null || true)
+  line=${line#"${line%%[![:space:]]*}"}
+  line=${line%"${line##*[![:space:]]}"}
+  printf '%s\n' "$line"
+}
+
+current_lock_meta() {
+  printf '%s\t%s\n' "$$" "$(process_command "$$")"
+}
+
+read_lock_meta() {
+  if [ -f "$lock_meta_file" ]; then
+    cat "$lock_meta_file" 2>/dev/null || true
+  fi
+}
+
+cleanup() {
+  if [ -n "${lock_held:-}" ] && [ -d "$lock_dir" ] && [ "$(read_lock_meta)" = "${lock_meta:-}" ]; then
+    rm -f "$lock_meta_file"
+    rmdir "$lock_dir"
+  fi
+}
+
+validate_config() {
+  case "$update_days" in
+    ''|*[!0-9]*)
+      emsg "lman: LMAN_UPDATE_DAYS must be a non-negative integer"
+      exit 1
+      ;;
+  esac
+}
+
+require_tools() {
+  local tool
+
+  for tool in git man ps; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      emsg "lman: required tool not found: $tool"
+      exit 127
+    fi
+  done
+}
+
+acquire_lock() {
+  local start now lock_pid lock_command current_command observed_meta
+
+  mkdir -p "$data_root"
+  start=$(date +%s)
+
+  while true; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      lock_meta="$(current_lock_meta)"
+      printf '%s\n' "$lock_meta" >"$lock_meta_file"
+      lock_held=1
+      return 0
+    fi
+
+    observed_meta=$(read_lock_meta)
+    lock_pid=''
+    lock_command=''
+    if [ -n "$observed_meta" ]; then
+      IFS=$'\t' read -r lock_pid lock_command <<EOF
+$observed_meta
+EOF
+    fi
+
+    if [ -n "$lock_pid" ] && [ -n "$lock_command" ]; then
+      current_command=$(process_command "$lock_pid")
+      if [ -n "$current_command" ] && [ "$current_command" = "$lock_command" ]; then
+        now=$(date +%s)
+        if [ $((now - start)) -ge "$lock_timeout_seconds" ]; then
+          emsg "lman: timed out waiting for mirror lock"
+          exit 1
+        fi
+
+        sleep 0.1
+        continue
+      fi
+    fi
+
+    now=$(date +%s)
+    if [ $((now - start)) -lt "$lock_timeout_seconds" ]; then
+      sleep 0.1
+      continue
+    fi
+
+    if [ "$(read_lock_meta)" = "$observed_meta" ]; then
+      rm -rf "$lock_dir"
+    fi
+  done
+}
+
+release_lock() {
+  if [ -n "${lock_held:-}" ] && [ -d "$lock_dir" ] && [ "$(read_lock_meta)" = "${lock_meta:-}" ]; then
+    rm -f "$lock_meta_file"
+    rmdir "$lock_dir"
+  fi
+  lock_held=
+}
+
+update_due() {
+  local repo_dir=$1 stamp_file=$2
+  local now last ttl
+
+  [ -d "$repo_dir/.git" ] || return 0
+  [ -f "$stamp_file" ] || return 0
+
+  now=$(date +%s)
+  last=$(stat -f %m "$stamp_file" 2>/dev/null || printf '0\n')
+  ttl=$((update_days * 24 * 60 * 60))
+
+  [ $((now - last)) -ge "$ttl" ]
+}
+
+clone_repo() {
+  local repo_url=$1 repo_dir=$2 stamp_file=$3
+  local tmp_dir
+
+  mkdir -p "$data_root"
+
+  if [ -e "$repo_dir" ] && [ ! -d "$repo_dir/.git" ]; then
+    rm -rf "$repo_dir"
+  fi
+
+  tmp_dir="$repo_dir.tmp.$$"
+  rm -rf "$tmp_dir"
+
+  if ! git clone --depth=1 "$repo_url" "$tmp_dir" >/dev/null 2>&1; then
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  rm -rf "$repo_dir"
+  if ! mv "$tmp_dir" "$repo_dir"; then
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  touch_stamp "$stamp_file"
+}
+
+update_repo() {
+  local repo_url=$1 repo_dir=$2 stamp_file=$3
+
+  if ! git -C "$repo_dir" remote set-url origin "$repo_url" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if ! git -C "$repo_dir" fetch --depth=1 origin HEAD >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if ! git -C "$repo_dir" reset --hard FETCH_HEAD >/dev/null 2>&1; then
+    return 1
+  fi
+
+  touch_stamp "$stamp_file"
+}
+
+ensure_repo() {
+  local refresh_mode=$1 repo_url=$2 repo_dir=$3 stamp_file=$4 label=$5
+
+  acquire_lock
+
+  if [ -e "$repo_dir" ] && [ ! -d "$repo_dir/.git" ]; then
+    rm -rf "$repo_dir"
+  fi
+
+  if [ ! -d "$repo_dir/.git" ]; then
+    if ! clone_repo "$repo_url" "$repo_dir" "$stamp_file"; then
+      release_lock
+      emsg "lman: failed to clone $label mirror"
+      return 1
+    fi
+    release_lock
+    return 0
+  fi
+
+  case "$refresh_mode" in
+    always)
+      if ! update_repo "$repo_url" "$repo_dir" "$stamp_file"; then
+        emsg "lman: refresh failed for $label; using existing local mirror"
+      fi
+      ;;
+    auto)
+      if update_due "$repo_dir" "$stamp_file"; then
+        if ! update_repo "$repo_url" "$repo_dir" "$stamp_file"; then
+          emsg "lman: refresh failed for $label; using existing local mirror"
+        fi
+      fi
+      ;;
+    never)
+      ;;
+  esac
+
+  release_lock
+  return 0
+}
+
+resolve_page_path() {
+  local refresh_mode=$1 section=$2 page=$3 section_explicit=$4
+  local page_path
+
+  page_path="$main_repo_dir/man${section}/${page}.${section}"
+  if ensure_repo "$refresh_mode" "$main_repo_url" "$main_repo_dir" "$main_stamp_file" "Linux man-pages" && [ -f "$page_path" ]; then
+    printf '%s\n' "$page_path"
+    return 0
+  fi
+
+  page_path="$liburing_repo_dir/man/${page}.${section}"
+  if ensure_repo "$refresh_mode" "$liburing_repo_url" "$liburing_repo_dir" "$liburing_stamp_file" "liburing" && [ -f "$page_path" ]; then
+    printf '%s\n' "$page_path"
+    return 0
+  fi
+
+  if [ "$section_explicit" != "1" ] && [ "$section" = "2" ]; then
+    page_path="$liburing_repo_dir/man/${page}.3"
+    if [ -f "$page_path" ]; then
+      printf '%s\n' "$page_path"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+refresh_mode=auto
+section=2
+section_explicit=0
+lock_held=
+lock_meta=
+
+trap cleanup EXIT INT TERM
+
+validate_config
+require_tools
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --sync)
+      refresh_mode=always
+      shift
+      ;;
+    --no-sync)
+      refresh_mode=never
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -* )
+      usage >&2
+      emsg "lman: unknown option $1"
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ $# -eq 0 ]; then
+  usage >&2
+  exit 1
+fi
+
+if [[ ${1:-} =~ ^[0-9]+$ ]]; then
+  section=$1
+  section_explicit=1
+  shift
+fi
+
+if [ $# -ne 1 ]; then
+  usage >&2
+  exit 1
+fi
+
+page=$1
+
+if ! page_path=$(resolve_page_path "$refresh_mode" "$section" "$page" "$section_explicit"); then
+  emsg "lman: no manual entry for ${page}(${section})"
+  exit 1
+fi
+
+if ! man "$page_path"; then
+  emsg "lman: failed to render ${page}(${section})"
+  exit 1
+fi
