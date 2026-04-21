@@ -13,9 +13,8 @@ Arguments:
 Draft the PR, propose the command, and stop.
 
 Rules:
-- First refresh remote-tracking refs with `git fetch origin`.
-- Analyze against `origin/main` then `origin/master` unless the user explicitly provided a different base.
+- Resolve the base branch locally via `origin/HEAD`, then `origin/main`, `origin/master`, `main`, `master`, unless the user explicitly provided a different base.
 - Do not run `gh pr create`, `gh pr edit`, `gh pr merge`, `gh pr close`, or any other mutating GitHub command in this drafting step.
-- Do not run `git push` in this drafting step.
+- Do not fetch or push in this drafting step.
 - Only present the title, body, and exact command to the user.
 - Execution requires a separate, explicit user instruction to create/open the PR in that turn.

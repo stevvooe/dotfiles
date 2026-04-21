@@ -26,7 +26,7 @@ description: Write documentation consumed by LLM agents — AGENTS.md, skill fil
 - Each section contains rules as bullet points. One rule per bullet.
 - Rules state what to do, not why. Add rationale only when the rule would otherwise seem arbitrary and the agent might override it.
 - Use imperative mood: "Use X", "Do not Y", "Prefer X over Y when Z."
-- Conditional rules: state the condition first. "If auth code is involved, run `@security-auditor`."
+- Conditional rules: state the condition first. "If auth, perf, or correctness risk is involved, run `@review`."
 - Keep ordering stable. New rules append within their section. Don't reorganize without reason.
 
 ### Skill files (SKILL.md)

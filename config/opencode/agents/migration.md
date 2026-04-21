@@ -37,7 +37,7 @@ Rules:
 - If the migration is large, break it into phases and confirm each phase before continuing
 
 When to suggest other agents:
-- Migration changes API surface → suggest @api-designer to review
+- Migration changes API surface → suggest @design to review
 - Migration breaks tests → suggest @debug to investigate
-- Post-migration code review needed → suggest @code-reviewer
-- Dependency has security implications → suggest @security-auditor
+- Post-migration review needed → suggest @review
+- Dependency has security or performance implications → suggest @review

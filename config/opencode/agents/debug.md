@@ -48,7 +48,6 @@ When reporting findings, include:
 - The minimal fix and why it works
 
 When to suggest other agents:
-- Root cause is a performance bottleneck → suggest @perf-review
-- Root cause is a security vulnerability → suggest @security-auditor
+- Root cause needs review across performance, security, or correctness → suggest @review
 - Root cause is a design flaw → suggest @architect
 - Fix is straightforward and needs implementation → suggest @refactor or the Build agent

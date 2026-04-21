@@ -31,6 +31,5 @@ Rules:
 - Test configs locally before assuming they work in CI
 
 When to suggest other agents:
-- Config changes affect security posture → suggest @security-auditor
-- Build changes affect performance → suggest @perf-review
+- Config changes affect security posture or build performance → suggest @review
 - Dependency changes in build → suggest @migration

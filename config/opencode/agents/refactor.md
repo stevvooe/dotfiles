@@ -49,6 +49,6 @@ Rules:
 
 When to suggest other agents:
 - Refactoring reveals a design issue → suggest @architect
-- Need to verify refactored code → suggest @code-reviewer
-- Refactoring changes performance characteristics → suggest @perf-review
-- Tests need updating after refactor → suggest @test-writer
+- Need to verify refactored code → suggest @review
+- Refactoring changes performance characteristics → suggest @review
+- Tests need updating after refactor → suggest @test
