@@ -39,6 +39,7 @@ return {
       require("nvim-treesitter.install").ensure_installed(languages)
     end
 
+    vim.opt.foldlevelstart = 99
     vim.treesitter.language.register("bash", { "zsh" })
 
     local group = vim.api.nvim_create_augroup("treesitter-start", { clear = true })
@@ -66,7 +67,6 @@ return {
         local win = vim.api.nvim_get_current_win()
         vim.wo[win].foldexpr = "v:lua.vim.treesitter.foldexpr()"
         vim.wo[win].foldmethod = "expr"
-        vim.wo[win].foldlevelstart = 99
       end,
     })
   end,
