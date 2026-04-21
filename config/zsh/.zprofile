@@ -68,6 +68,7 @@ typeset -gU cdpath fpath mailpath path
 
 # Set the list of directories that Zsh searches for programs.
 path=(
+  $HOME/.bun/bin(N)
   $PYENV_ROOT/bin(N)
   $HOME/go/{,s}bin(N)
   $HOME/{,s}bin(N)

@@ -12,6 +12,7 @@ all: \
 	git-setup \
 	go-setup \
 	rust-setup \
+	bun-setup \
 	npm-setup
 brew:
 	which brew || ( \
@@ -109,8 +110,11 @@ rust-setup: brew-packages
 	rustup component add rust-analyzer
 	rustup component add rustfmt
 
+bun-setup: brew-packages
+	which bun || (echo "bun not found, please install Bun first" && exit 1)
+	cat $(DOTFILES)/bun-global-packages.txt | xargs -I {} bun add -g {}
+
 npm-setup: brew-packages
 	which npm || (echo "npm not found, please install Node.js first" && exit 1)
 	cat $(DOTFILES)/npm-global-packages.txt | xargs -I {} npm install -g {}
-
 

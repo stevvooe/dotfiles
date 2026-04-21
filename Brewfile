@@ -72,6 +72,8 @@ cask "ghostty"
 
 tap "anomalyco/tap"
 tap "fluxcd/tap"
+tap "oven-sh/bun"
 brew "anomalyco/tap/opencode"
+brew "oven-sh/bun/bun"
 
 go "golang.org/x/tools/gopls"
