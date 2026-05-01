@@ -6,7 +6,8 @@ description: Draft and create pull requests using the repository's conventions a
 ## Workflow
 
 1. **Determine base branch**
-   - Use the user-supplied base if provided.
+   - Treat slash-command arguments as freeform PR drafting guidance, not positional parameters.
+   - Use a base override only when the prompt explicitly frames it as the base branch, for example `base branch is <branch>` or `use <branch> as the base`.
    - Otherwise resolve the default branch locally in this order:
      - `rtk git symbolic-ref refs/remotes/origin/HEAD`
      - `rtk git rev-parse --verify refs/remotes/origin/main`
@@ -30,6 +31,7 @@ description: Draft and create pull requests using the repository's conventions a
    - Use `rtk` prefix on all bash commands (the plugin hook does not intercept subagent calls).
    - Use git's own flags to limit output; never pipe to `head`/`tail` (pipes break permission matching).
    - Prefer a practical summary of current branch work over exhaustive commit archaeology.
+   - Use `30` commits for log context unless the prompt explicitly asks for a different count.
       ```
       rtk git branch --show-current
       rtk git diff --stat <base>...HEAD

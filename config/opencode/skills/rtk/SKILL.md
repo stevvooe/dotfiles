@@ -14,6 +14,18 @@ rtk is a CLI proxy that compresses command output before it reaches the LLM, sav
 - The plugin auto-disables if `rtk` is not in PATH.
 - Plugin hooks do not intercept subagent tool calls (upstream: sst/opencode#5894). Subagents should prefix commands with `rtk` directly.
 
+## Escape hatch for filtered output
+
+Use `rtk` first for long or noisy commands. If filtered output hides ordinary logs, assertions, timing, verbose test output, or other details needed to diagnose or verify behavior, rerun the exact original command once through `rtk proxy` to get unfiltered output:
+
+```bash
+rtk proxy go test ./...
+rtk proxy cargo test --all
+rtk proxy pytest -q
+```
+
+Use proxy instead of rerunning the filtered command. For example, if `rtk go test ./...` does not expose the failing assertion, package output, or requested `-v` logs, use `rtk proxy go test ./...` next.
+
 ## Command chaining
 
 In `&&` chains, each command needs the `rtk` prefix:
@@ -98,7 +110,7 @@ Called directly (not auto-rewritten):
 rtk gain              # Token savings analytics
 rtk gain --history    # Command usage history with savings
 rtk discover          # Analyze history for missed optimization opportunities
-rtk proxy <cmd>       # Run command without filtering (debugging)
+rtk proxy <cmd>       # Run command without filtering when rtk hid needed details
 ```
 
 ## When to use this skill

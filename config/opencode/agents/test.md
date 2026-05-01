@@ -12,6 +12,7 @@ permission:
     "rtk cargo clippy*": allow
     "rtk cargo test*": allow
     "rtk go test*": allow
+    "rtk proxy go test*": allow
     "grep *": allow
     "rg *": allow
 ---
@@ -29,6 +30,7 @@ Rules:
 - Use table-driven tests where there are multiple input variations
 - Each test should have a clear name that describes what it verifies, not what it calls
 - Run the tests after writing them. Fix failures before reporting done.
+- If `rtk` filtered output hides needed failure details, rerun the exact original test command once with `rtk proxy`, such as `rtk proxy go test ./...`. Do not rerun the same filtered command repeatedly.
 - Separate test setup from assertions. Use helpers and cleanup functions.
 
 Go-specific:

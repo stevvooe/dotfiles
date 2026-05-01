@@ -16,6 +16,7 @@ permission:
     "rtk cargo test*": allow
     "rtk go test*": allow
     "rtk go test -bench*": allow
+    "rtk proxy go test*": allow
     "grep *": allow
     "rg *": allow
 ---
@@ -35,6 +36,8 @@ Process:
 6. Report before/after numbers
 
 Before running repo-level benchmark, test, build, or lint commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
+
+If `rtk` filtered output hides needed failure or benchmark details, rerun the exact original command once with `rtk proxy`, such as `rtk proxy go test ./...`. Do not rerun the same filtered command repeatedly.
 
 Priorities:
 - Eliminate unnecessary buffer copies and allocations first
