@@ -91,6 +91,7 @@ Use subagents proactively when their specialty materially improves the result.
 - Keep APIs small, consistent, and explicit.
 - Respect module boundaries. If an abstraction blocks needed work, improve the abstraction instead of reaching into internals.
 - Treat public API shape, error strategy, and dependency choices as design decisions to surface explicitly.
+- Prefer explicit dependency injection (constructor or method injection) over global state, singletons, or ambient context. Pass collaborators as arguments rather than reaching for them. Exceptions are fine for truly cross-cutting concerns (logging, tracing, metrics, configuration), but default to making dependencies visible.
 
 ## Go
 
