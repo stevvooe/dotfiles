@@ -29,6 +29,17 @@ return {
                 vim.keymap.set('n', '<leader>f', function()
                     vim.lsp.buf.format { async = true }
                 end, opts)
+
+                -- Format on save if the server supports it
+                local client = vim.lsp.get_client_by_id(ev.data.client_id)
+                if client and client:supports_method("textDocument/formatting") then
+                    vim.api.nvim_create_autocmd("BufWritePre", {
+                        buffer = ev.buf,
+                        callback = function()
+                            vim.lsp.buf.format({ bufnr = ev.buf, id = client.id })
+                        end,
+                    })
+                end
             end,
         })
 

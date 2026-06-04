@@ -18,5 +18,3 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup("plugins")
-
-vim.g.rustfmt_autosave = 1
