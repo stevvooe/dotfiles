@@ -49,8 +49,8 @@ export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS }--color=bg:#2427
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
 if command -v go >/dev/null 2>&1; then
-  # Ensure private Docker modules resolve without repeatedly rewriting go env files
-  export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/docker/*"
+  # Ensure private Baseten modules resolve without repeatedly rewriting go env files
+  export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/basetenlabs/*."
 fi
 # Cache Docker completion locally and load it via fpath.
 docker_completion_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions"
@@ -91,7 +91,11 @@ unset _zsh_site_functions
 autoload -Uz compinit
 _zsh_compdump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
 mkdir -p "${_zsh_compdump:h}"
-compinit -i -d "$_zsh_compdump"
+if [[ -n "$_zsh_compdump"(#qN.m+1) ]]; then
+  compinit -i -d "$_zsh_compdump"
+else
+  compinit -C -i -d "$_zsh_compdump"
+fi
 unset _zsh_compdump
 
 # Interactive shell defaults.

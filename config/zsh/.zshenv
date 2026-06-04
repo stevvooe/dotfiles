@@ -3,6 +3,7 @@ if [[ -s "$HOME/.cargo/env" ]]; then
   source "$HOME/.cargo/env"
 fi
 export GPG_TTY=$TTY
+export OPENCODE_ENABLE_EXA=true
 
 if [[ "$(uname)" == "Darwin" ]]; then
   # LIBCLANG_PATH is for bindgen at compile time.
