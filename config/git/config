@@ -15,6 +15,16 @@
 	insteadOf = https://github.com/
 [init]
 	defaultBranch = main
+[fetch]
+	prune = true
+[pull]
+	ff = only
+[push]
+	autoSetupRemote = true
+[rebase]
+	autosquash = true
+[rerere]
+	enabled = true
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
