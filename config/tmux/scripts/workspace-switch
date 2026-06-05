@@ -153,9 +153,40 @@ rows="$tmpdir/rows"         # display rows
 # order key: 0 current, 1 live, 2 dormant, 3 plain ; then name
 # Columns sized to fit a ~72-col popup:
 #   dot(1) icon(1) name(24) branch(20) win(4)
+# repo_label PATH: the owning repo as <org>/<repo>. The icon distinguishes a
+# main checkout from a worktree and the branch identifies the workspace, so we
+# show the repo identity, never the worktree subdir.
+#   ~/code/<host>/<org>/<repo>[/.workspaces/<ws>] -> <org>/<repo>
+#   ~/code/<x>[/...]                               -> <x>
+#   ~/<x>[/...]                                    -> <x>
+repo_label() {
+  local p=$1 rest org repo
+  case "$p" in
+    "$HOME"/code/*/*/*)
+      # ~/code/<host>/<org>/<repo>/... -> <org>/<repo>
+      rest=${p#"$HOME"/code/*/}     # <org>/<repo>/...
+      org=${rest%%/*}
+      rest=${rest#*/}               # <repo>/...
+      repo=${rest%%/*}
+      printf '%s/%s\n' "$org" "$repo"
+      ;;
+    "$HOME"/code/*)
+      rest=${p#"$HOME"/code/}
+      printf '%s\n' "${rest%%/*}"
+      ;;
+    "$HOME"/*)
+      rest=${p#"$HOME"/}
+      printf '%s\n' "${rest%%/*}"
+      ;;
+    *)
+      printf '%s\n' "${p##*/}"
+      ;;
+  esac
+}
+
 emit_row() {
-  local order=$1 sortkey=$2 life=$3 icon=$4 name=$5 branch=$6 windows=$7 action=$8
-  local dot dotcolor namecolor wincolor winval
+  local order=$1 sortkey=$2 life=$3 icon=$4 name=$5 branch=$6 windows=$7 action=$8 path=${9:-}
+  local dot dotcolor namecolor wincolor winval loc
 
   case "$life" in
     current) dot=$dot_current; dotcolor=$ctp_mauve ;;
@@ -171,15 +202,19 @@ emit_row() {
     wincolor=$ctp_overlay; winval='·'
   fi
 
+  loc=''
+  [ -n "$path" ] && loc=$(repo_label "$path")
+
   # One printf, width specifiers do the padding (no inner subshells). Color
   # codes wrap the padded fields and don't affect column width.
   # Fields: order \t sortkey \t action \t display
-  printf '%s\t%s\t%s\t%b %b  %b%-30.30s%b  %b%-18.18s%b  %b%s%b\n' \
+  printf '%s\t%s\t%s\t%b %b  %b%-22.22s%b  %b%-24.24s%b  %b%-4s%b  %b%-30.30s%b\n' \
     "$order" "$sortkey" "$action" \
     "${dotcolor}${dot}${ctp_reset}" "$icon" \
     "$namecolor" "$name" "$ctp_reset" \
     "$ctp_subtext" "${branch:--}" "$ctp_reset" \
     "$wincolor" "$winval" "$ctp_reset" \
+    "$ctp_overlay" "$loc" "$ctp_reset" \
     >>"$rows"
 }
 
@@ -247,38 +282,53 @@ while [ "$i" -lt "$n" ]; do
       *)                        icon=$icon_worktree ;;
     esac
     printf '%s\n' "$top" >>"$claimed"
-    emit_row "$order" "$sortkey" "$life" "$icon" "$sname" "$branch" "$win_label" "switch:$sname"
+    emit_row "$order" "$sortkey" "$life" "$icon" "$sname" "$branch" "$win_label" "switch:$sname" "$top"
   else
-    emit_row 0 "$sortkey" "$life" "$icon_plain" "$sname" "" "$win_label" "switch:$sname"
+    emit_row 0 "$sortkey" "$life" "$icon_plain" "$sname" "" "$win_label" "switch:$sname" "${s_root[$i]:-}"
   fi
   i=$((i + 1))
 done
 
-# --- 2. Add dormant workspaces from the current repo ----------------------
-# Mirror `wks rows`: the main checkout plus every dir under <main>/.workspaces.
-# Done inline (no wks binary spawn). Branch is read per dormant dir, but only
+# --- 2. Add dormant workspaces -------------------------------------------
+# Mirror `wks rows`: a checkout plus every dir under its .workspaces. Done
+# inline (no wks binary spawn). Branch is read per dormant dir, but only
 # dormant ones (no live session) reach that git call, so it stays cheap.
-common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
-if [ -n "$common_dir" ]; then
-  main_root=$(cd "$common_dir/.." 2>/dev/null && pwd -P)
-  ws_dir="$main_root/.workspaces"
-
-  emit_dormant() {
-    local p=$1 icon=$2 name rp branch
-    rp=$(realpath_safe "$p" || true)
-    grep -qxF "$rp" "$claimed" 2>/dev/null && return
+emit_dormant() {
+  local p=$1 icon=$2 name rp branch
+  rp=$(realpath_safe "$p" || true)
+  grep -qxF "$rp" "$claimed" 2>/dev/null && return
     name=$(basename "$rp")
     branch=$(git -C "$rp" symbolic-ref --short -q HEAD 2>/dev/null || echo '?')
-    emit_row 1 0 dormant "$icon" "$name" "$branch" "" "wksdir:$rp:$name"
-  }
+    emit_row 1 0 dormant "$icon" "$name" "$branch" "" "wksdir:$rp:$name" "$rp"
+}
 
-  emit_dormant "$main_root" "$icon_checkout"
+# emit_checkout CHECKOUT: the checkout itself + its .workspaces/* worktrees.
+emit_checkout() {
+  local root=$1 ws_dir="$1/.workspaces" d
+  emit_dormant "$root" "$icon_checkout"
   if [ -d "$ws_dir" ]; then
     for d in "$ws_dir"/*; do
       [ -d "$d" ] || continue
       git -C "$d" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
       emit_dormant "$d" "$icon_worktree"
     done
+  fi
+}
+
+if [ "${WKS_GLOBAL:-0}" = "1" ]; then
+  # Machine-wide: every checkout under the code root (+ their worktrees).
+  code_root=${WKS_CODE_ROOT:-${CODEHOME:-$HOME/code}}
+  if command -v fd >/dev/null 2>&1 && [ -d "$code_root" ]; then
+    while IFS= read -r gitdir; do
+      gitdir=${gitdir%/}
+      emit_checkout "${gitdir%/.git}"
+    done < <(fd -H -t d -g '.git' --prune "$code_root" 2>/dev/null)
+  fi
+else
+  # Current repo only.
+  common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+  if [ -n "$common_dir" ]; then
+    emit_checkout "$(cd "$common_dir/.." 2>/dev/null && pwd -P)"
   fi
 fi
 
@@ -293,10 +343,10 @@ result=$(
   sort -t '	' -k1,1n -k2,2nr "$rows" | cut -f3- |
     fzf --ansi --color="$fzf_colors" \
       --prompt='workspace> ' \
-      --header='enter:switch ^n:new ^c:clone ^o:repo ^g:dir ^d:del ^r:rename esc:cancel' \
+      --header='enter:switch ^a:all ^n:new ^c:clone ^o:repo ^f:dir ^x:del ^z:sleep ^r:rename esc:cancel' \
       --height=100% --layout=reverse --border=rounded \
       --delimiter=$'\t' --with-nth=2 \
-      --expect=ctrl-n,ctrl-c,ctrl-o,ctrl-g,ctrl-d,ctrl-r
+      --expect=ctrl-n,ctrl-c,ctrl-o,ctrl-f,ctrl-x,ctrl-r,ctrl-a,ctrl-z
 )
 
 [ -n "$result" ] || exit 0
@@ -324,6 +374,11 @@ case "$kind" in
 esac
 
 case "$key" in
+  ctrl-a)
+    # Re-run this same picker machine-wide. Same renderer, same keys; only the
+    # dormant scan widens to every repo under the code root.
+    WKS_GLOBAL=1 exec "$0"
+    ;;
   ctrl-n)
     # Resolve the selected row's root so "new" operates on the right context.
     sel_root=""
@@ -351,9 +406,13 @@ case "$key" in
     if [ -n "$sel_root" ] && git -C "$sel_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       # Git row: pick what to create. plain/fix/feat make a worktree;
       # clone just spawns another session for the same checkout (no worktree).
-      printf 'New [p]lain / [f]ix / fea[t] worktree, or [c]lone session? ' >&2
-      read -r bk </dev/tty || bk=p
-      if [ "$bk" = "c" ] || [ "$bk" = "clone" ] || [ "$bk" = "s" ]; then
+      # fzf menu so Esc aborts cleanly (a raw read can't be escaped).
+      bk=$(printf 'plain\nfix\nfeat\nclone session\n' \
+        | fzf --no-info --height=100% --layout=reverse --border=rounded \
+            --color="$fzf_colors" --prompt='new kind> ' 2>/dev/null) || exit 0
+      [ -z "$bk" ] && exit 0
+      bk=${bk%% *}   # "clone session" -> "clone"
+      if [ "$bk" = "clone" ]; then
         new_name=$(prompt_edit 'new session> ' '') || exit 0
         [ -z "$new_name" ] && exit 0
         spawn_session "$new_name" "$sel_root"
@@ -362,9 +421,9 @@ case "$key" in
       new_name=$(prompt_edit 'new workspace> ' '') || exit 0
       [ -z "$new_name" ] && exit 0
       case "$bk" in
-        f|fix)  ( cd "$sel_root" && exec "$wks_cmd" new --fix "$new_name" ) ;;
-        t|feat) ( cd "$sel_root" && exec "$wks_cmd" new --feat "$new_name" ) ;;
-        *)      ( cd "$sel_root" && exec "$wks_cmd" new "$new_name" ) ;;
+        fix)  ( cd "$sel_root" && exec "$wks_cmd" new --fix "$new_name" ) ;;
+        feat) ( cd "$sel_root" && exec "$wks_cmd" new --feat "$new_name" ) ;;
+        *)    ( cd "$sel_root" && exec "$wks_cmd" new "$new_name" ) ;;
       esac
       exit $?
     else
@@ -449,23 +508,27 @@ case "$key" in
     [ -z "$repo" ] && exit 0
     exec "$wks_cmd" clone "$repo"
     ;;
-  ctrl-g)
-    # Open an arbitrary directory. The list is zoxide's frecency-ranked dirs
-    # (the places you actually visit, hidden or not). You can also just TYPE a
-    # path -- --print-query means an un-listed path (e.g. ~/.config/foo) still
-    # opens. Tilde and $HOME are expanded by open_dir.
-    if command -v zoxide >/dev/null 2>&1; then
-      dirs=$(zoxide query -l 2>/dev/null)
-    else
-      dirs=$(fd -t d --max-depth "${WKS_DIR_DEPTH:-3}" -E node_modules -E .git \
-               . "${WKS_DIR_ROOT:-$HOME}" 2>/dev/null)
-    fi
-    sel=$(
-      printf '%s\n' "$dirs" \
-        | fzf --print-query --color="$fzf_colors" --prompt='open dir> ' \
-            --height=100% --layout=reverse --border=rounded \
-            --header='type a path for anything not listed'
-    )
+   ctrl-f)
+     # Open an arbitrary directory. Candidates merge zoxide's frecency-ranked
+     # dirs (places you actually visit) with an fd filesystem walk under the
+     # root, so unvisited dirs are reachable too. You can also just TYPE any
+     # path -- enter accepts the typed query even when it matches nothing in
+     # the list, so a brand-new dir (e.g. ~/claude-test) still opens. Tilde and
+     # $HOME are expanded by open_dir.
+     dirs=$(
+       {
+         command -v zoxide >/dev/null 2>&1 && zoxide query -l 2>/dev/null
+         fd -t d --max-depth "${WKS_DIR_DEPTH:-3}" -E node_modules -E .git \
+           . "${WKS_DIR_ROOT:-$HOME}" 2>/dev/null
+       } | awk 'NF && !seen[$0]++'
+     )
+     sel=$(
+       printf '%s\n' "$dirs" \
+         | fzf --print-query --color="$fzf_colors" --prompt='open dir> ' \
+             --height=100% --layout=reverse --border=rounded \
+             --bind 'enter:print-query+accept' \
+             --header='type a path for anything not listed'
+     )
     # Lines: query (1), selection (2). Prefer the selection; fall back to the
     # typed query so hidden / unlisted paths work.
     g_query=$(printf '%s\n' "$sel" | sed -n '1p')
@@ -475,7 +538,19 @@ case "$key" in
     open_dir "$target_dir"
     exit $?
     ;;
-  ctrl-d)
+  ctrl-z)
+    # Make a live workspace dormant: kill its session, keep the worktree.
+    # Only meaningful for live rows (dormant rows have no session).
+    if [ "$kind" = "switch" ]; then
+      sroot=$(tmux show-options -t "$session_target" -qv @wks_root 2>/dev/null || true)
+      if [ -n "$sroot" ]; then
+        exec "$wks_cmd" down "$sroot"
+      else
+        safe_kill_session "$session_target"
+      fi
+    fi
+    ;;
+  ctrl-x)
     if [ "$kind" = "wksdir" ]; then
       ( cd "$ws_path" && exec "$wks_cmd" rm )
       exit $?

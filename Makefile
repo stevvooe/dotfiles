@@ -46,7 +46,16 @@ tmux-tpm-update:
 $(HOME)/bin:
 	mkdir -p "$@"
 
-link-bin: stow bin/* $(HOME)/bin
+# swarm: TS agent-orchestration tool compiled to a standalone binary via bun.
+# Built from src/swarm; output is gitignored and stowed like other bin/ tools.
+bin/swarm: src/swarm/swarm.ts $(wildcard src/swarm/*.ts)
+	which bun || (echo "bun not found, please install Bun first" && exit 1)
+	cd $(DOTFILES)/src/swarm && bun install
+	cd $(DOTFILES) && bun build --compile --outfile bin/swarm src/swarm/swarm.ts
+
+swarm: bin/swarm
+
+link-bin: stow bin/swarm bin/* $(HOME)/bin
 	stow -t $(HOME)/bin bin
 
 link-runcoms: stow runcoms/.*

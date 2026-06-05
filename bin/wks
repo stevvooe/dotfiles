@@ -11,6 +11,10 @@ usage() {
 Usage:
   wks                  # ensure + attach the tmux session for the current workspace
   wks ls [--status]
+  wks ls --global
+  wks up <name|path>
+  wks down [name|path]
+  wks agent [name|path]
   wks new <name> [--base <ref>] [--no-attach]
   wks new --fix <name> [--base <ref>] [--no-attach]
   wks new --feat <name> [--base <ref>] [--no-attach]
@@ -24,15 +28,22 @@ Usage:
   wks rm [name] [--force] [--prune-branch]
   wks clone <owner/repo>
   wks adopt [--all]
-  wks agents [--json] [--all]
-  wks attention [--json] [--all]
-  wks attention --wait [--timeout <secs>] [--json]
   wks path [name]
 
 Commands:
   (no args)            Ensure + attach the tmux session for the current workspace.
                        Outside a workspace, fall back to the session picker.
-  ls [--status]        List worktrees (--status adds dirty/clean check)
+  ls [--status]        List worktrees in the current repo (--status adds
+                       dirty/clean check). --global lists every known workspace
+                       machine-wide (checkouts + .workspaces under the code
+                       root, plus live @wks_root sessions; live/dormant state).
+  up                   Start-or-attach the session for a known workspace by
+                       name or path (machine-wide). Wakes a dormant workspace.
+  down                 Make a workspace dormant: kill its session, keep the
+                       worktree. Defaults to the current workspace.
+  agent                Launch opencode (via oc) in the workspace's agent pane
+                       so the swarm tooling can drive it. Ensures the session;
+                       idempotent. Defaults to the current workspace.
   new                  Create .workspaces/<name> from --base (default: origin/HEAD),
                        then attach its session (--no-attach to skip)
   names                Print workspace names (for scripting/completion)
@@ -47,16 +58,6 @@ Commands:
   clone                Clone a GitHub repo (owner/repo) via cleanclone into
                        $CODEHOME and open a session. Idempotent if it exists.
   adopt                Backfill @wks_root on the current session (--all: every session)
-  agents               List oc-launched opencode servers on the machine (port,
-                       busy, session count, directory). --all adds unmanaged
-                       opencode TUIs (no port). --json for structured output.
-  attention            Scan the fleet for agents needing input (idle, awaiting
-                       user). --all lists every server with its state. --json
-                       for structured output. Scan mode does not detect
-                       permission-blocked sessions.
-                       --wait blocks on the event streams until a session goes
-                       idle or asks for permission (blocked), prints it, exits.
-                       --timeout <secs> caps the wait (exit 2 on timeout).
   path                 Print current workspace root, or named workspace path
 
 Notes:
@@ -366,13 +367,23 @@ sanitize_session_name() {
 }
 
 workspace_kind_for() {
-  local path=$1
+  local path=$1 top
 
-  if [ "$path" = "$main_root" ]; then
+  # Prefer the in-scope main_root when available (repo-scoped commands), but
+  # fall back to probing the path's own git context so this works for the
+  # machine-wide commands (up/down/agent) that don't init repo paths. A path
+  # under a .workspaces dir, or whose toplevel differs from the common dir's
+  # parent, is a worktree; otherwise a checkout.
+  if [ -n "${main_root:-}" ] && [ "$path" = "$main_root" ]; then
     printf 'checkout\n'
-  else
-    printf 'worktree\n'
+    return 0
   fi
+
+  case "$path" in
+    */.workspaces/*) printf 'worktree\n'; return 0 ;;
+  esac
+
+  printf 'checkout\n'
 }
 
 # Active pane cwd for a session. display-message -t '=name' does not resolve
@@ -427,9 +438,12 @@ session_name_for() {
 }
 
 # Create the tmux session + window layout if missing, stamping @wks_root.
+# The right dev pane is the designated agent home: it gets the @wks_agent pane
+# option so `wks agent` can find it by identity, not by fragile pane index.
 ensure_session() {
   local path=$1
   local session=$2
+  local agent_pane
 
   if tmux has-session -t "=$session" 2>/dev/null; then
     return 0
@@ -437,7 +451,8 @@ ensure_session() {
 
   tmux new-session -d -s "$session" -n dev -c "$path"
   tmux set-option -t "$session" @wks_root "$path"
-  tmux split-window -h -t "=$session":dev -c "$path"
+  agent_pane=$(tmux split-window -h -t "=$session":dev -c "$path" -P -F '#{pane_id}')
+  tmux set-option -p -t "$agent_pane" @wks_agent 1
   tmux new-window -t "=$session":2 -n zsh -c "$path"
   tmux select-window -t "=$session":dev
   tmux select-pane -t "=$session":dev.1
@@ -836,13 +851,16 @@ cmd_new() {
   branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
   target=$(create_worktree "$name" "$base" "$branch")
 
+  # Always create the session (detached). --no-attach only suppresses the
+  # switch, so the workspace still has a live session an agent can run in.
+  session=$(session_name_for "$target")
+  ensure_session "$target" "$session"
+
   if [ "$no_attach" -eq 1 ]; then
     printf '%s\n' "$target"
     return 0
   fi
 
-  session=$(session_name_for "$target")
-  ensure_session "$target" "$session"
   attach_or_switch "$session"
 }
 
@@ -1021,361 +1039,238 @@ cmd_default() {
   exit 1
 }
 
-# --- agent swarm: discovery over oc-launched opencode servers ----------------
+# --- global (cross-repo) workspace inventory ---------------------------------
 
-# Print one port per line for every opencode server listening on loopback.
-# Only oc-launched (or --port) servers bind a TCP port; plain TUIs use a unix
-# socket and are invisible here.
-discover_servers() {
-  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null \
-    | awk '/opencode/ {print $9}' \
-    | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' \
-    | sort -un
+# Code root to scan for checkouts and their .workspaces/ worktrees.
+wks_code_root() {
+  printf '%s\n' "${WKS_CODE_ROOT:-${CODEHOME:-$HOME/code}}"
 }
 
-server_get() {
-  local port=$1 path=$2
-  curl -s --max-time 2 "http://127.0.0.1:$port$path" 2>/dev/null
-}
+# Emit every known workspace machine-wide as tab rows:
+#   <name>\t<branch>\t<state>\t<path>\t<session|->
+# Sources, deduped by path:
+#   1. live tmux sessions stamped with @wks_root (any location)
+#   2. checkouts under the code root and their .workspaces/* worktrees
+# state is live (has a session) or dormant (on disk, no session).
+global_workspace_rows() {
+  local code_root tmpd seen_file sess_file
+  code_root=$(wks_code_root)
+  tmpd=$(mktemp -d)
+  seen_file="$tmpd/seen"
+  sess_file="$tmpd/sessions"
+  : >"$seen_file"
+  : >"$sess_file"
 
-server_dir() {
-  server_get "$1" /path | sed -n 's/.*"directory":"\([^"]*\)".*/\1/p'
-}
+  # Map of @wks_root -> session name, for state + dedupe.
+  tmux list-sessions -F '#{@wks_root}	#{session_name}' 2>/dev/null \
+    | awk -F'\t' 'NF==2 && $1!=""' >"$sess_file" || true
 
-# Count sessions whose directory matches $2, and whether any is busy.
-# Prints: "<count>\t<busy:0|1>\t<recent_title>"
-server_dir_summary() {
-  local port=$1 dir=$2
-  server_get "$port" /session | DIR="$dir" python3 -c '
-import sys, json, os
-dir = os.environ["DIR"]
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    print("0\t0\t")
-    sys.exit(0)
-hits = [s for s in data if s.get("directory", "") == dir]
-hits.sort(key=lambda s: s.get("time", {}).get("updated", 0), reverse=True)
-title = hits[0]["title"] if hits else ""
-print("%d\t0\t%s" % (len(hits), title))
-' 2>/dev/null || printf '0\t0\t\n'
-}
-
-server_busy() {
-  # Non-empty /session/status means at least one in-flight session.
-  local status
-  status=$(server_get "$1" /session/status)
-  case "$status" in
-    ""|"{}") printf '0\n' ;;
-    *) printf '1\n' ;;
-  esac
-}
-
-# List opencode processes that have NO bound TCP port (unmanaged TUIs).
-# Prints: "<pid>\t<cwd>" per line.
-discover_unmanaged() {
-  local ported pid cwd
-  ported=$(discover_servers_pids)
-  for pid in $(pgrep -x opencode 2>/dev/null || true); do
-    case " $ported " in
-      *" $pid "*) continue ;;
-    esac
-    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
-    [ -n "$cwd" ] && printf '%s\t%s\n' "$pid" "$cwd"
-  done
-}
-
-# PIDs of opencode processes that own a loopback TCP listener.
-discover_servers_pids() {
-  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null \
-    | awk '/opencode/ {print $2}' \
-    | sort -un \
-    | tr '\n' ' '
-}
-
-json_escape() {
-  local s=$1
-  s=${s//\\/\\\\}
-  s=${s//\"/\\\"}
-  printf '%s' "$s"
-}
-
-# Enumerate every addressable opencode server on the machine (oc-launched).
-# --all also lists unmanaged TUIs (no port, drive only via tmux).
-cmd_agents() {
-  local as_json=0 show_all=0 port dir busy count title
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --json) as_json=1; shift ;;
-      --all) show_all=1; shift ;;
-      *) emsg "error: unknown option '$1'"; exit 1 ;;
-    esac
-  done
-
-  if ! command -v curl >/dev/null 2>&1; then
-    emsg "error: curl is required"
-    exit 1
-  fi
-
-  if [ "$as_json" -eq 1 ]; then
-    printf '['
-  fi
-
-  local first=1
-  for port in $(discover_servers); do
-    dir=$(server_dir "$port")
-    busy=$(server_busy "$port")
-    IFS=$'\t' read -r count _ title <<EOF
-$(server_dir_summary "$port" "$dir")
-EOF
-
-    if [ "$as_json" -eq 1 ]; then
-      [ "$first" -eq 0 ] && printf ','
-      first=0
-      printf '{"port":%s,"url":"http://127.0.0.1:%s","directory":"%s","sessions":%s,"busy":%s,"recent":"%s","managed":true}' \
-        "$port" "$port" "$(json_escape "$dir")" "${count:-0}" \
-        "$([ "$busy" -eq 1 ] && echo true || echo false)" \
-        "$(json_escape "$title")"
+  emit() {
+    local path=$1 name branch session rp
+    rp=$(realpath_safe_path "$path")
+    grep -qxF "$rp" "$seen_file" 2>/dev/null && return
+    printf '%s\n' "$rp" >>"$seen_file"
+    name=$(basename "$rp")
+    branch=$(git -C "$rp" symbolic-ref --short -q HEAD 2>/dev/null || echo '-')
+    session=$(awk -F'\t' -v r="$rp" '$1==r {print $2; exit}' "$sess_file")
+    if [ -n "$session" ]; then
+      printf '%s\t%s\tlive\t%s\t%s\n' "$name" "$branch" "$rp" "$session"
     else
-      printf '%-6s %-7s %-3s %-50s %s\n' \
-        "$port" \
-        "$([ "$busy" -eq 1 ] && echo busy || echo idle)" \
-        "${count:-0}" \
-        "$dir" \
-        "$title"
+      printf '%s\t%s\tdormant\t%s\t-\n' "$name" "$branch" "$rp"
     fi
-  done
+  }
 
-  if [ "$show_all" -eq 1 ]; then
-    local pid cwd
-    while IFS=$'\t' read -r pid cwd; do
-      [ -z "$pid" ] && continue
-      if [ "$as_json" -eq 1 ]; then
-        [ "$first" -eq 0 ] && printf ','
-        first=0
-        printf '{"pid":%s,"directory":"%s","managed":false}' \
-          "$pid" "$(json_escape "$cwd")"
-      else
-        printf '%-6s %-7s %-3s %-50s %s\n' \
-          "$pid" "unmgd" "-" "$cwd" "(no port; tmux only)"
+  # 1. Live @wks_root sessions first (so live state wins; catches bare dirs).
+  local sroot
+  while IFS=$'\t' read -r sroot _; do
+    [ -n "$sroot" ] && [ -d "$sroot" ] && emit "$sroot"
+  done <"$sess_file"
+
+  # 2. Checkouts under the code root + their .workspaces/* worktrees.
+  if command -v fd >/dev/null 2>&1 && [ -d "$code_root" ]; then
+    local gitdir checkout ws d
+    while IFS= read -r gitdir; do
+      gitdir=${gitdir%/}        # fd may emit a trailing slash
+      checkout=${gitdir%/.git}
+      emit "$checkout"
+      ws="$checkout/.workspaces"
+      if [ -d "$ws" ]; then
+        for d in "$ws"/*; do
+          [ -d "$d" ] || continue
+          emit "$d"
+        done
       fi
-    done < <(discover_unmanaged)
+    done < <(fd -H -t d -g '.git' --prune "$code_root" 2>/dev/null)
   fi
 
-  if [ "$as_json" -eq 1 ]; then
-    printf ']\n'
+  rm -rf "$tmpd"
+}
+
+# realpath without requiring repo context (mirrors realpath_safe in the picker).
+realpath_safe_path() {
+  local p=$1
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$p" 2>/dev/null || printf '%s\n' "$p"
+  else
+    ( cd "$p" 2>/dev/null && pwd -P ) || printf '%s\n' "$p"
   fi
 }
 
-# For a server, inspect its most-recently-updated session and classify it.
-# Prints: "<state>\t<session_id>\t<title>"
-# state: busy (mid-turn) | idle (last turn was a completed assistant reply,
-# awaiting user) | quiet (no sessions / indeterminate).
-server_active_session() {
-  local port=$1 dir=$2 sid
-  sid=$(server_get "$port" /session | DIR="$dir" python3 -c '
-import sys, json, os
-dir = os.environ["DIR"]
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-hits = [s for s in data if s.get("directory", "") == dir]
-hits.sort(key=lambda s: s.get("time", {}).get("updated", 0), reverse=True)
-if hits:
-    print(hits[0]["id"])
-' 2>/dev/null)
+# Resolve a workspace name OR path to a directory, across all known workspaces.
+resolve_global_workspace() {
+  local query=$1 rows match count
 
-  if [ -z "$sid" ]; then
-    printf 'quiet\t\t\n'
+  # Direct path?
+  if [ -d "$query" ]; then
+    realpath_safe_path "$query"
     return 0
   fi
 
-  # Busy wins: server status lists in-flight sessions.
-  case "$(server_get "$port" /session/status)" in
-    ""|"{}") ;;
-    *"$sid"*) printf 'busy\t%s\t\n' "$sid"; return 0 ;;
+  rows=$(global_workspace_rows)
+  match=$(printf '%s\n' "$rows" | awk -F'\t' -v q="$query" '$1==q {print $4}')
+  count=$(printf '%s\n' "$match" | grep -c . || true)
+
+  if [ "$count" -eq 1 ]; then
+    printf '%s\n' "$match"
+    return 0
+  fi
+  if [ "$count" -eq 0 ]; then
+    emsg "error: no workspace named '$query'"
+    return 1
+  fi
+  emsg "error: '$query' is ambiguous; matches:"
+  printf '%s\n' "$match" | sed 's/^/  /' >&2
+  return 1
+}
+
+# wks up <name|path>: start-or-attach the session for a known workspace.
+cmd_up() {
+  local query=${1:-} path
+
+  if [ -z "$query" ]; then
+    emsg "error: usage: wks up <name|path>"
+    exit 1
+  fi
+  if [ $# -gt 1 ]; then
+    emsg "error: unexpected extra argument '$2'"
+    exit 1
+  fi
+
+  path=$(resolve_global_workspace "$query") || exit 1
+  open_path "$path"
+}
+
+# wks down [name|path]: make a workspace dormant -- kill its tmux session but
+# keep the worktree on disk. Defaults to the current workspace. If it is the
+# current session, switches the client to the MRU survivor first.
+cmd_down() {
+  local query=${1:-} path session
+
+  if [ $# -gt 1 ]; then
+    emsg "error: unexpected extra argument '$2'"
+    exit 1
+  fi
+
+  if [ -n "$query" ]; then
+    path=$(resolve_global_workspace "$query") || exit 1
+  else
+    path=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    if [ -z "$path" ]; then
+      emsg "error: not in a workspace; usage: wks down <name|path>"
+      exit 1
+    fi
+  fi
+
+  if session=$(session_for_root "$path"); then
+    safe_kill_session "$session" || exit 1
+    emsg "dormant: $session ($path)"
+  else
+    emsg "already dormant: $path"
+  fi
+}
+
+# Find the pane id marked @wks_agent in a session. Empty if none.
+agent_pane_for_session() {
+  local session=$1
+  tmux list-panes -t "=$session" -F '#{@wks_agent} #{pane_id}' 2>/dev/null \
+    | awk '$1=="1" {print $2; exit}'
+}
+
+# wks agent [name|path]: launch opencode (via `oc`) in the workspace's agent
+# pane so it is discoverable/drivable by the swarm tooling. Ensures the session
+# first. Idempotent: if the agent pane is already running opencode, do nothing.
+# Defaults to the current workspace. wks owns the tmux side; swarm finds the
+# resulting server by its loopback port.
+cmd_agent() {
+  local query=${1:-} path session pane cmd
+
+  if [ $# -gt 1 ]; then
+    emsg "error: unexpected extra argument '$2'"
+    exit 1
+  fi
+
+  if [ -n "$query" ]; then
+    path=$(resolve_global_workspace "$query") || exit 1
+  else
+    path=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    if [ -z "$path" ]; then
+      emsg "error: not in a workspace; usage: wks agent <name|path>"
+      exit 1
+    fi
+  fi
+
+  # Ensure the session exists (creates the layout + stamps @wks_agent).
+  if ! session=$(session_for_root "$path"); then
+    session=$(session_name_for "$path")
+    ensure_session "$path" "$session"
+  fi
+
+  # Locate the agent pane; if the session predates @wks_agent, designate the
+  # dev window's right pane and stamp it.
+  pane=$(agent_pane_for_session "$session")
+  if [ -z "$pane" ]; then
+    pane=$(tmux list-panes -t "=$session":dev -F '#{pane_id}' 2>/dev/null | sed -n '2p')
+    [ -z "$pane" ] && pane=$(tmux list-panes -t "=$session" -F '#{pane_id}' 2>/dev/null | sed -n '1p')
+    if [ -z "$pane" ]; then
+      emsg "error: could not find a pane for $session"
+      exit 1
+    fi
+    tmux set-option -p -t "$pane" @wks_agent 1
+  fi
+
+  # Idempotent: only launch if the pane is sitting at a shell.
+  cmd=$(tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null || true)
+  case "$cmd" in
+    opencode|node|bun)
+      emsg "agent already running in $session ($cmd)"
+      return 0
+      ;;
   esac
 
-  # Not busy: if the last message is a completed assistant turn, it's idle and
-  # awaiting the user (needs input).
-  server_get "$port" "/session/$sid/message?limit=1" | SID="$sid" python3 -c '
-import sys, json, os
-sid = os.environ["SID"]
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    print("quiet\t%s\t" % sid); sys.exit(0)
-if not d:
-    print("quiet\t%s\t" % sid); sys.exit(0)
-m = d[-1]
-info = m.get("info", {})
-role = info.get("role")
-completed = info.get("time", {}).get("completed")
-texts = [p.get("text","") for p in m.get("parts", []) if p.get("type") == "text"]
-title = " ".join(texts).strip().replace("\n", " ")[:60]
-if role == "assistant" and completed:
-    print("idle\t%s\t%s" % (sid, title))
-else:
-    print("busy\t%s\t%s" % (sid, title))
-' 2>/dev/null || printf 'quiet\t%s\t\n' "$sid"
+  tmux send-keys -t "$pane" "oc" C-m
+  emsg "launched agent (oc) in $session"
 }
 
-# Block on the fleet's event streams until one session needs input: either it
-# goes idle (finished a turn) or asks for permission (blocked). Prints one line
-# describing the triggering session, then exits. --timeout <secs> caps the wait.
-#
-# A single python process multiplexes all SSE streams via threads and prints the
-# first matching event, so bash starts and stops exactly one child (no leaked
-# curl pipelines, no job-control noise).
-cmd_attention_wait() {
-  local as_json=0 timeout=0 ports line
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --json) as_json=1; shift ;;
-      --timeout)
-        shift
-        timeout=${1:-0}
-        shift ;;
-      --timeout=*) timeout=${1#--timeout=}; shift ;;
-      *) emsg "error: unknown option '$1'"; exit 1 ;;
-    esac
+# wks ls --global: machine-wide workspace inventory.
+# Raw tab-delimited global rows (name\tbranch\tstate\tpath), same shape as
+# `wks rows --status` but machine-wide. For the picker and scripting.
+cmd_rows_global() {
+  local name branch state path session
+  global_workspace_rows | while IFS=$'\t' read -r name branch state path session; do
+    printf '%s\t%s\t%s\t%s\n' "$name" "$branch" "$state" "$path"
   done
-
-  ports=$(discover_servers | tr '\n' ' ')
-  if [ -z "$ports" ]; then
-    emsg "error: no opencode servers found"
-    exit 1
-  fi
-
-  line=$(WKS_PORTS="$ports" WKS_TIMEOUT="$timeout" python3 -u -c '
-import os, sys, json, threading, urllib.request
-
-ports = os.environ["WKS_PORTS"].split()
-timeout = float(os.environ["WKS_TIMEOUT"]) or None
-hit = {}
-done = threading.Event()
-lock = threading.Lock()
-
-def watch(port):
-    try:
-        req = urllib.request.urlopen("http://127.0.0.1:%s/event" % port, timeout=300)
-    except Exception:
-        return
-    for raw in req:
-        if done.is_set():
-            break
-        try:
-            line = raw.decode("utf-8", "replace").strip()
-        except Exception:
-            continue
-        if not line.startswith("data:"):
-            continue
-        try:
-            evt = json.loads(line[5:].strip())
-        except Exception:
-            continue
-        t = evt.get("type"); p = evt.get("properties", {})
-        out = None
-        if t == "session.idle":
-            out = "%s\tidle\t%s\t" % (port, p.get("sessionID", ""))
-        elif t == "permission.asked":
-            pats = ",".join(p.get("patterns", []))
-            out = "%s\tblocked\t%s\t%s: %s" % (port, p.get("sessionID",""), p.get("permission",""), pats)
-        if out:
-            with lock:
-                if not done.is_set():
-                    hit["line"] = out
-                    done.set()
-            try: req.close()
-            except Exception: pass
-            return
-
-threads = [threading.Thread(target=watch, args=(p,), daemon=True) for p in ports]
-for th in threads: th.start()
-done.wait(timeout)
-sys.stdout.write(hit.get("line", ""))
-' 2>/dev/null)
-
-  if [ -z "$line" ]; then
-    emsg "timeout: no session needed input within ${timeout}s"
-    exit 2
-  fi
-
-  local r_port r_kind r_sid r_detail r_dir
-  IFS=$'\t' read -r r_port r_kind r_sid r_detail <<EOF
-$line
-EOF
-  r_dir=$(server_dir "$r_port")
-
-  if [ "$as_json" -eq 1 ]; then
-    printf '{"port":%s,"directory":"%s","state":"%s","session":"%s","detail":"%s"}\n' \
-      "$r_port" "$(json_escape "$r_dir")" "$r_kind" "$r_sid" "$(json_escape "$r_detail")"
-  else
-    printf '%-6s %-7s %-50s %s\n' "$r_port" "$r_kind" "$r_dir" "$r_detail"
-  fi
 }
 
-# Scan the fleet and surface agents needing input (idle, awaiting user).
-# Note: scan mode cannot detect permission-blocked sessions; that requires the
-# event stream (use --wait).
-cmd_attention() {
-  local as_json=0 show_all=0 do_wait=0 timeout=0 port dir state sid title
-  local -a wait_args
-  wait_args=()
+# Human-facing global inventory. Same format as `wks ls --status`, machine-wide.
+cmd_ls_global() {
+  local name branch state path session marker current
+  current=$(git rev-parse --show-toplevel 2>/dev/null || true)
 
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --wait) do_wait=1; shift ;;
-      --timeout) wait_args+=(--timeout "${2:-}"); shift 2 ;;
-      --timeout=*) wait_args+=("$1"); shift ;;
-      --json) as_json=1; wait_args+=(--json); shift ;;
-      --all) show_all=1; shift ;;
-      *) emsg "error: unknown option '$1'"; exit 1 ;;
-    esac
+  global_workspace_rows | while IFS=$'\t' read -r name branch state path session; do
+    marker=' '
+    [ -n "$current" ] && [ "$path" = "$current" ] && marker='*'
+    printf '%s %-16s %-24s %-6s %s\n' "$marker" "$name" "$branch" "$state" "$path"
   done
-
-  if [ "$do_wait" -eq 1 ]; then
-    cmd_attention_wait ${wait_args[@]+"${wait_args[@]}"}
-    return $?
-  fi
-
-  if ! command -v curl >/dev/null 2>&1; then
-    emsg "error: curl is required"
-    exit 1
-  fi
-
-  if [ "$as_json" -eq 1 ]; then
-    printf '['
-  fi
-
-  local first=1
-  for port in $(discover_servers); do
-    dir=$(server_dir "$port")
-    IFS=$'\t' read -r state sid title <<EOF
-$(server_active_session "$port" "$dir")
-EOF
-
-    # Default: only surface sessions needing input. --all: show every server.
-    if [ "$show_all" -eq 0 ] && [ "$state" != "idle" ]; then
-      continue
-    fi
-
-    if [ "$as_json" -eq 1 ]; then
-      [ "$first" -eq 0 ] && printf ','
-      first=0
-      printf '{"port":%s,"directory":"%s","state":"%s","session":"%s","recent":"%s"}' \
-        "$port" "$(json_escape "$dir")" "$state" "$sid" "$(json_escape "$title")"
-    else
-      printf '%-6s %-6s %-50s %s\n' "$port" "$state" "$dir" "$title"
-    fi
-  done
-
-  if [ "$as_json" -eq 1 ]; then
-    printf ']\n'
-  fi
 }
 
 main() {
@@ -1390,7 +1285,8 @@ main() {
   shift
 
   # These run outside a git repo: adopt operates on tmux sessions; clone
-  # creates the repo before any workspace context exists.
+  # creates the repo before any workspace context exists; up and global ls
+  # are machine-wide and must not require the current dir to be a repo.
   if [ "$cmd" = "adopt" ]; then
     cmd_adopt "$@"
     return 0
@@ -1399,13 +1295,28 @@ main() {
     cmd_clone "$@"
     return 0
   fi
-  if [ "$cmd" = "agents" ]; then
-    cmd_agents "$@"
+  if [ "$cmd" = "up" ]; then
+    cmd_up "$@"
     return 0
   fi
-  if [ "$cmd" = "attention" ]; then
-    cmd_attention "$@"
+  if [ "$cmd" = "down" ]; then
+    cmd_down "$@"
     return 0
+  fi
+  if [ "$cmd" = "agent" ]; then
+    cmd_agent "$@"
+    return 0
+  fi
+  # `ls --global` / `rows --global` are cross-repo; handle before the repo guard.
+  if [ "$cmd" = "ls" ]; then
+    case " $* " in
+      *" --global "*|*" --all "*) cmd_ls_global; return 0 ;;
+    esac
+  fi
+  if [ "$cmd" = "rows" ]; then
+    case " $* " in
+      *" --global "*|*" --all "*) cmd_rows_global; return 0 ;;
+    esac
   fi
 
   require_git_repo

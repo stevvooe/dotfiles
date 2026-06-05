@@ -109,6 +109,28 @@ _wks_complete_workspaces() {
   _describe -V -t workspaces "workspace" described || compadd -- $plain
 }
 
+# Cross-repo workspace names (for up/down/agent, which resolve globally).
+_wks_complete_global_workspaces() {
+  local wks_cmd row name branch state
+  local -a parts plain described
+
+  wks_cmd="$(_wks_resolve_cmd)"
+  [[ -z "$wks_cmd" ]] && return 1
+
+  for row in "${(@f)$("$wks_cmd" rows --global 2>/dev/null)}"; do
+    parts=("${(ps:\t:)row}")
+    name="${parts[1]}"
+    branch="${parts[2]}"
+    state="${parts[3]}"
+    [[ -z "$name" ]] && continue
+    plain+=("$name")
+    described+=("$name:${branch}, ${state}")
+  done
+
+  (( $#plain )) || return 1
+  _describe -V -t workspaces "workspace" described || compadd -- $plain
+}
+
 _wks_new_workspace_arg() {
   _message "new workspace name"
 }
@@ -136,8 +158,9 @@ _wks_completion() {
     "rm:remove workspace"
     "clone:clone a GitHub repo and open a session"
     "adopt:stamp @wks_root on tmux sessions"
-    "agents:list opencode servers on the machine"
-    "attention:scan fleet for agents needing input"
+    "up:start-or-attach a workspace session"
+    "down:make a workspace dormant (kill session)"
+    "agent:launch opencode in a workspace"
     "path:print workspace path"
     "help:show usage"
   )
@@ -155,6 +178,9 @@ _wks_completion() {
       case "$subcommand" in
         sw|switch|path)
           _wks_complete_workspaces
+          ;;
+        up|down|agent)
+          _wks_complete_global_workspaces
           ;;
         rm)
           _arguments -s \
@@ -178,18 +204,6 @@ _wks_completion() {
         adopt)
           _arguments -s \
             "--all[adopt every tmux session]"
-          ;;
-        agents)
-          _arguments -s \
-            "--json[structured JSON output]" \
-            "--all[include unmanaged opencode TUIs]"
-          ;;
-        attention)
-          _arguments -s \
-            "--json[structured JSON output]" \
-            "--all[show every server with its state]" \
-            "--wait[block until a session goes idle or blocked]" \
-            "--timeout[cap the wait in seconds]:seconds:"
           ;;
       esac
       ;;

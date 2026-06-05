@@ -8,4 +8,7 @@ config/zsh/.zsh_sessions/
 config/zsh/.zcompdump*
 config/opencode/node_modules
 config/tmux/plugins/
+bin/swarm
+src/swarm/node_modules
+*.bun-build
 **/*.log
