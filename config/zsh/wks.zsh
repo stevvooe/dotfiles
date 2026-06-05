@@ -136,6 +136,8 @@ _wks_completion() {
     "rm:remove workspace"
     "clone:clone a GitHub repo and open a session"
     "adopt:stamp @wks_root on tmux sessions"
+    "agents:list opencode servers on the machine"
+    "attention:scan fleet for agents needing input"
     "path:print workspace path"
     "help:show usage"
   )
@@ -176,6 +178,18 @@ _wks_completion() {
         adopt)
           _arguments -s \
             "--all[adopt every tmux session]"
+          ;;
+        agents)
+          _arguments -s \
+            "--json[structured JSON output]" \
+            "--all[include unmanaged opencode TUIs]"
+          ;;
+        attention)
+          _arguments -s \
+            "--json[structured JSON output]" \
+            "--all[show every server with its state]" \
+            "--wait[block until a session goes idle or blocked]" \
+            "--timeout[cap the wait in seconds]:seconds:"
           ;;
       esac
       ;;

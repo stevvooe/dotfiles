@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -eu
+
+emsg() {
+	echo "$*" 1>&2
+}
+
+usage() {
+	cat 1>&1 << EOF
+Usage: $0 [opencode args...]
+
+Launch opencode with a loopback-only HTTP server on an ephemeral port so it can
+be discovered and driven by the agent swarm tooling (see 'wks attention').
+
+The server binds 127.0.0.1 with an OS-assigned port. Discover live servers with:
+  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN | grep opencode
+
+All arguments are passed through to opencode, so '$0 -c', '$0 run ...', etc. work.
+
+Options:
+  -h, --help   display this message.
+EOF
+}
+
+case "${1:-}" in
+	-h | --help)
+		usage
+		exit 0
+		;;
+esac
+
+exec opencode --hostname 127.0.0.1 --port 0 "$@"

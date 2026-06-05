@@ -24,6 +24,9 @@ Usage:
   wks rm [name] [--force] [--prune-branch]
   wks clone <owner/repo>
   wks adopt [--all]
+  wks agents [--json] [--all]
+  wks attention [--json] [--all]
+  wks attention --wait [--timeout <secs>] [--json]
   wks path [name]
 
 Commands:
@@ -44,6 +47,16 @@ Commands:
   clone                Clone a GitHub repo (owner/repo) via cleanclone into
                        $CODEHOME and open a session. Idempotent if it exists.
   adopt                Backfill @wks_root on the current session (--all: every session)
+  agents               List oc-launched opencode servers on the machine (port,
+                       busy, session count, directory). --all adds unmanaged
+                       opencode TUIs (no port). --json for structured output.
+  attention            Scan the fleet for agents needing input (idle, awaiting
+                       user). --all lists every server with its state. --json
+                       for structured output. Scan mode does not detect
+                       permission-blocked sessions.
+                       --wait blocks on the event streams until a session goes
+                       idle or asks for permission (blocked), prints it, exits.
+                       --timeout <secs> caps the wait (exit 2 on timeout).
   path                 Print current workspace root, or named workspace path
 
 Notes:
@@ -1008,6 +1021,363 @@ cmd_default() {
   exit 1
 }
 
+# --- agent swarm: discovery over oc-launched opencode servers ----------------
+
+# Print one port per line for every opencode server listening on loopback.
+# Only oc-launched (or --port) servers bind a TCP port; plain TUIs use a unix
+# socket and are invisible here.
+discover_servers() {
+  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null \
+    | awk '/opencode/ {print $9}' \
+    | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' \
+    | sort -un
+}
+
+server_get() {
+  local port=$1 path=$2
+  curl -s --max-time 2 "http://127.0.0.1:$port$path" 2>/dev/null
+}
+
+server_dir() {
+  server_get "$1" /path | sed -n 's/.*"directory":"\([^"]*\)".*/\1/p'
+}
+
+# Count sessions whose directory matches $2, and whether any is busy.
+# Prints: "<count>\t<busy:0|1>\t<recent_title>"
+server_dir_summary() {
+  local port=$1 dir=$2
+  server_get "$port" /session | DIR="$dir" python3 -c '
+import sys, json, os
+dir = os.environ["DIR"]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("0\t0\t")
+    sys.exit(0)
+hits = [s for s in data if s.get("directory", "") == dir]
+hits.sort(key=lambda s: s.get("time", {}).get("updated", 0), reverse=True)
+title = hits[0]["title"] if hits else ""
+print("%d\t0\t%s" % (len(hits), title))
+' 2>/dev/null || printf '0\t0\t\n'
+}
+
+server_busy() {
+  # Non-empty /session/status means at least one in-flight session.
+  local status
+  status=$(server_get "$1" /session/status)
+  case "$status" in
+    ""|"{}") printf '0\n' ;;
+    *) printf '1\n' ;;
+  esac
+}
+
+# List opencode processes that have NO bound TCP port (unmanaged TUIs).
+# Prints: "<pid>\t<cwd>" per line.
+discover_unmanaged() {
+  local ported pid cwd
+  ported=$(discover_servers_pids)
+  for pid in $(pgrep -x opencode 2>/dev/null || true); do
+    case " $ported " in
+      *" $pid "*) continue ;;
+    esac
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+    [ -n "$cwd" ] && printf '%s\t%s\n' "$pid" "$cwd"
+  done
+}
+
+# PIDs of opencode processes that own a loopback TCP listener.
+discover_servers_pids() {
+  lsof -nP -iTCP@127.0.0.1 -sTCP:LISTEN 2>/dev/null \
+    | awk '/opencode/ {print $2}' \
+    | sort -un \
+    | tr '\n' ' '
+}
+
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  printf '%s' "$s"
+}
+
+# Enumerate every addressable opencode server on the machine (oc-launched).
+# --all also lists unmanaged TUIs (no port, drive only via tmux).
+cmd_agents() {
+  local as_json=0 show_all=0 port dir busy count title
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) as_json=1; shift ;;
+      --all) show_all=1; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  if ! command -v curl >/dev/null 2>&1; then
+    emsg "error: curl is required"
+    exit 1
+  fi
+
+  if [ "$as_json" -eq 1 ]; then
+    printf '['
+  fi
+
+  local first=1
+  for port in $(discover_servers); do
+    dir=$(server_dir "$port")
+    busy=$(server_busy "$port")
+    IFS=$'\t' read -r count _ title <<EOF
+$(server_dir_summary "$port" "$dir")
+EOF
+
+    if [ "$as_json" -eq 1 ]; then
+      [ "$first" -eq 0 ] && printf ','
+      first=0
+      printf '{"port":%s,"url":"http://127.0.0.1:%s","directory":"%s","sessions":%s,"busy":%s,"recent":"%s","managed":true}' \
+        "$port" "$port" "$(json_escape "$dir")" "${count:-0}" \
+        "$([ "$busy" -eq 1 ] && echo true || echo false)" \
+        "$(json_escape "$title")"
+    else
+      printf '%-6s %-7s %-3s %-50s %s\n' \
+        "$port" \
+        "$([ "$busy" -eq 1 ] && echo busy || echo idle)" \
+        "${count:-0}" \
+        "$dir" \
+        "$title"
+    fi
+  done
+
+  if [ "$show_all" -eq 1 ]; then
+    local pid cwd
+    while IFS=$'\t' read -r pid cwd; do
+      [ -z "$pid" ] && continue
+      if [ "$as_json" -eq 1 ]; then
+        [ "$first" -eq 0 ] && printf ','
+        first=0
+        printf '{"pid":%s,"directory":"%s","managed":false}' \
+          "$pid" "$(json_escape "$cwd")"
+      else
+        printf '%-6s %-7s %-3s %-50s %s\n' \
+          "$pid" "unmgd" "-" "$cwd" "(no port; tmux only)"
+      fi
+    done < <(discover_unmanaged)
+  fi
+
+  if [ "$as_json" -eq 1 ]; then
+    printf ']\n'
+  fi
+}
+
+# For a server, inspect its most-recently-updated session and classify it.
+# Prints: "<state>\t<session_id>\t<title>"
+# state: busy (mid-turn) | idle (last turn was a completed assistant reply,
+# awaiting user) | quiet (no sessions / indeterminate).
+server_active_session() {
+  local port=$1 dir=$2 sid
+  sid=$(server_get "$port" /session | DIR="$dir" python3 -c '
+import sys, json, os
+dir = os.environ["DIR"]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+hits = [s for s in data if s.get("directory", "") == dir]
+hits.sort(key=lambda s: s.get("time", {}).get("updated", 0), reverse=True)
+if hits:
+    print(hits[0]["id"])
+' 2>/dev/null)
+
+  if [ -z "$sid" ]; then
+    printf 'quiet\t\t\n'
+    return 0
+  fi
+
+  # Busy wins: server status lists in-flight sessions.
+  case "$(server_get "$port" /session/status)" in
+    ""|"{}") ;;
+    *"$sid"*) printf 'busy\t%s\t\n' "$sid"; return 0 ;;
+  esac
+
+  # Not busy: if the last message is a completed assistant turn, it's idle and
+  # awaiting the user (needs input).
+  server_get "$port" "/session/$sid/message?limit=1" | SID="$sid" python3 -c '
+import sys, json, os
+sid = os.environ["SID"]
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("quiet\t%s\t" % sid); sys.exit(0)
+if not d:
+    print("quiet\t%s\t" % sid); sys.exit(0)
+m = d[-1]
+info = m.get("info", {})
+role = info.get("role")
+completed = info.get("time", {}).get("completed")
+texts = [p.get("text","") for p in m.get("parts", []) if p.get("type") == "text"]
+title = " ".join(texts).strip().replace("\n", " ")[:60]
+if role == "assistant" and completed:
+    print("idle\t%s\t%s" % (sid, title))
+else:
+    print("busy\t%s\t%s" % (sid, title))
+' 2>/dev/null || printf 'quiet\t%s\t\n' "$sid"
+}
+
+# Block on the fleet's event streams until one session needs input: either it
+# goes idle (finished a turn) or asks for permission (blocked). Prints one line
+# describing the triggering session, then exits. --timeout <secs> caps the wait.
+#
+# A single python process multiplexes all SSE streams via threads and prints the
+# first matching event, so bash starts and stops exactly one child (no leaked
+# curl pipelines, no job-control noise).
+cmd_attention_wait() {
+  local as_json=0 timeout=0 ports line
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) as_json=1; shift ;;
+      --timeout)
+        shift
+        timeout=${1:-0}
+        shift ;;
+      --timeout=*) timeout=${1#--timeout=}; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  ports=$(discover_servers | tr '\n' ' ')
+  if [ -z "$ports" ]; then
+    emsg "error: no opencode servers found"
+    exit 1
+  fi
+
+  line=$(WKS_PORTS="$ports" WKS_TIMEOUT="$timeout" python3 -u -c '
+import os, sys, json, threading, urllib.request
+
+ports = os.environ["WKS_PORTS"].split()
+timeout = float(os.environ["WKS_TIMEOUT"]) or None
+hit = {}
+done = threading.Event()
+lock = threading.Lock()
+
+def watch(port):
+    try:
+        req = urllib.request.urlopen("http://127.0.0.1:%s/event" % port, timeout=300)
+    except Exception:
+        return
+    for raw in req:
+        if done.is_set():
+            break
+        try:
+            line = raw.decode("utf-8", "replace").strip()
+        except Exception:
+            continue
+        if not line.startswith("data:"):
+            continue
+        try:
+            evt = json.loads(line[5:].strip())
+        except Exception:
+            continue
+        t = evt.get("type"); p = evt.get("properties", {})
+        out = None
+        if t == "session.idle":
+            out = "%s\tidle\t%s\t" % (port, p.get("sessionID", ""))
+        elif t == "permission.asked":
+            pats = ",".join(p.get("patterns", []))
+            out = "%s\tblocked\t%s\t%s: %s" % (port, p.get("sessionID",""), p.get("permission",""), pats)
+        if out:
+            with lock:
+                if not done.is_set():
+                    hit["line"] = out
+                    done.set()
+            try: req.close()
+            except Exception: pass
+            return
+
+threads = [threading.Thread(target=watch, args=(p,), daemon=True) for p in ports]
+for th in threads: th.start()
+done.wait(timeout)
+sys.stdout.write(hit.get("line", ""))
+' 2>/dev/null)
+
+  if [ -z "$line" ]; then
+    emsg "timeout: no session needed input within ${timeout}s"
+    exit 2
+  fi
+
+  local r_port r_kind r_sid r_detail r_dir
+  IFS=$'\t' read -r r_port r_kind r_sid r_detail <<EOF
+$line
+EOF
+  r_dir=$(server_dir "$r_port")
+
+  if [ "$as_json" -eq 1 ]; then
+    printf '{"port":%s,"directory":"%s","state":"%s","session":"%s","detail":"%s"}\n' \
+      "$r_port" "$(json_escape "$r_dir")" "$r_kind" "$r_sid" "$(json_escape "$r_detail")"
+  else
+    printf '%-6s %-7s %-50s %s\n' "$r_port" "$r_kind" "$r_dir" "$r_detail"
+  fi
+}
+
+# Scan the fleet and surface agents needing input (idle, awaiting user).
+# Note: scan mode cannot detect permission-blocked sessions; that requires the
+# event stream (use --wait).
+cmd_attention() {
+  local as_json=0 show_all=0 do_wait=0 timeout=0 port dir state sid title
+  local -a wait_args
+  wait_args=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --wait) do_wait=1; shift ;;
+      --timeout) wait_args+=(--timeout "${2:-}"); shift 2 ;;
+      --timeout=*) wait_args+=("$1"); shift ;;
+      --json) as_json=1; wait_args+=(--json); shift ;;
+      --all) show_all=1; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  if [ "$do_wait" -eq 1 ]; then
+    cmd_attention_wait ${wait_args[@]+"${wait_args[@]}"}
+    return $?
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    emsg "error: curl is required"
+    exit 1
+  fi
+
+  if [ "$as_json" -eq 1 ]; then
+    printf '['
+  fi
+
+  local first=1
+  for port in $(discover_servers); do
+    dir=$(server_dir "$port")
+    IFS=$'\t' read -r state sid title <<EOF
+$(server_active_session "$port" "$dir")
+EOF
+
+    # Default: only surface sessions needing input. --all: show every server.
+    if [ "$show_all" -eq 0 ] && [ "$state" != "idle" ]; then
+      continue
+    fi
+
+    if [ "$as_json" -eq 1 ]; then
+      [ "$first" -eq 0 ] && printf ','
+      first=0
+      printf '{"port":%s,"directory":"%s","state":"%s","session":"%s","recent":"%s"}' \
+        "$port" "$(json_escape "$dir")" "$state" "$sid" "$(json_escape "$title")"
+    else
+      printf '%-6s %-6s %-50s %s\n' "$port" "$state" "$dir" "$title"
+    fi
+  done
+
+  if [ "$as_json" -eq 1 ]; then
+    printf ']\n'
+  fi
+}
+
 main() {
   local cmd
 
@@ -1027,6 +1397,14 @@ main() {
   fi
   if [ "$cmd" = "clone" ]; then
     cmd_clone "$@"
+    return 0
+  fi
+  if [ "$cmd" = "agents" ]; then
+    cmd_agents "$@"
+    return 0
+  fi
+  if [ "$cmd" = "attention" ]; then
+    cmd_attention "$@"
     return 0
   fi
 
