@@ -1,0 +1,530 @@
+#!/usr/bin/env bash
+
+# workspace-switch: a tmux popup picker that unifies wks workspaces and tmux
+# sessions (Model B). Every session is classified by probing its @wks_root
+# (falling back to its active pane cwd). Dormant (sessionless) workspaces in
+# the current repo are surfaced from `wks rows`.
+#
+# Lifecycle vocabulary:
+#   dormant - workspace dir exists, no tmux session
+#   live    - a tmux session exists for it (not the current one)
+#   current - the live session we are attached to right now
+#
+# Keys: enter switch/attach | ctrl-n new | ctrl-d delete | ctrl-r rename | esc
+
+set -euo pipefail
+
+ctp_reset=$'\033[0m'
+ctp_mauve=$'\033[38;5;183m'
+ctp_lavender=$'\033[38;5;147m'
+ctp_green=$'\033[38;5;114m'
+ctp_yellow=$'\033[38;5;223m'
+ctp_subtext=$'\033[38;5;245m'
+ctp_overlay=$'\033[38;5;240m'
+fzf_colors='bg:#24273a,bg+:#363a4f,fg:#cad3f5,fg+:#f4dbd6,gutter:#24273a,hl:#f5a97f,hl+:#f5a97f,pointer:#c6a0f6,marker:#a6da95,prompt:#8aadf4,spinner:#8bd5ca,info:#91d7e3,border:#494d64,separator:#363a4f,header:#a5adcb'
+
+# Nerd Font glyphs
+icon_checkout=''      # nf-fa-home (U+F015)
+icon_worktree=''      # nf-fa-code_fork (U+F126)
+icon_plain=''         # nf-fa-folder (U+F07B)
+dot_current=''        # nf-fa-circle (U+F111)
+dot_live=''           # nf-fa-circle dimmed (U+F111)
+dot_dormant=''        # nf-fa-circle_o (U+F10C)
+
+if ! command -v fzf >/dev/null 2>&1; then
+  printf 'error: fzf not found in PATH\n' >&2
+  exit 1
+fi
+if ! command -v tmux >/dev/null 2>&1; then
+  printf 'error: tmux not found in PATH\n' >&2
+  exit 1
+fi
+
+wks_cmd=$(command -v wks 2>/dev/null || true)
+if [ -z "$wks_cmd" ] && [ -x "$HOME/.dotfiles/bin/wks" ]; then
+  wks_cmd=$HOME/.dotfiles/bin/wks
+fi
+
+session_switch="$HOME/.config/tmux/scripts/session-switch"
+
+# Root under which `ctrl-o` searches for git repos to open.
+code_root=${WKS_CODE_ROOT:-$HOME/code}
+
+realpath_safe() {
+  local p=$1
+  [ -z "$p" ] && return 1
+  ( cd "$p" 2>/dev/null && pwd -P ) || printf '%s\n' "$p"
+}
+
+# Single-line editor: prompts with PROMPT, prefilled with DEFAULT, full line
+# editing (via fzf as a readline). Prints the edited value on stdout. Returns
+# non-zero if the user cancelled (esc) so callers can abort.
+prompt_edit() {
+  local prompt=$1 default=$2 src out
+  # fzf as a line editor: prefill --query with the current value and make Enter
+  # emit the (possibly edited) query via --print-query (first output line).
+  # When there's a default we feed it as a candidate so it can be re-selected;
+  # with no default we feed an empty list and rely on the query. Esc -> abort.
+  if [ -n "$default" ]; then
+    src=$(printf '%s\n' "$default")
+  else
+    src=''
+  fi
+  out=$(printf '%s' "$src" | fzf --print-query --no-info --height=3 \
+    --layout=reverse --border=rounded --color="$fzf_colors" \
+    --prompt="$prompt" --query="$default" \
+    --bind 'enter:print-query+accept' 2>/dev/null | sed -n '1p')
+  [ -z "$out" ] && return 1
+  printf '%s' "$out"
+}
+
+# Active pane cwd for a session. Uses list-panes (display-message -t '=name'
+# does not resolve pane_current_path reliably).
+session_pane_path() {
+  tmux list-panes -t "=$1" -F '#{?pane_active,#{pane_current_path},}' 2>/dev/null \
+    | grep -v '^$' | head -1
+}
+
+# open_dir DIR: open a directory as a workspace/session and switch to it.
+# Git dirs go through wks (proper repo session + reuse). Plain dirs reuse an
+# existing session for that path, else spawn one named after the basename.
+open_dir() {
+  local target=$1 existing sname
+  target=${target/#\~/$HOME}
+  [ -d "$target" ] || { printf 'not a directory: %s\n' "$target" >&2; return 1; }
+
+  if git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    ( cd "$target" && exec "$wks_cmd" )
+    return $?
+  fi
+
+  target=$(realpath_safe "$target" || printf '%s' "$target")
+  existing=$(tmux list-sessions -F '#{@wks_root}	#{session_name}' 2>/dev/null \
+    | awk -F'\t' -v r="$target" '$1==r {print $2; exit}')
+  if [ -n "$existing" ]; then
+    tmux switch-client -t "=$existing"
+    return 0
+  fi
+
+  sname=$(basename "$target" | tr ' .' '--')
+  [ -z "$sname" ] && sname=dir
+  tmux has-session -t "=$sname" 2>/dev/null && sname="${sname}-$$"
+  tmux new-session -d -s "$sname" -c "$target"
+  tmux set-option -t "$sname" @wks_root "$target"
+  tmux switch-client -t "=$sname"
+}
+
+# Kill a session safely. If it is the session we are attached to, switch the
+# client to the most-recently-used other session first so tmux does not exit.
+safe_kill_session() {
+  local victim=$1 next
+
+  if [ "$victim" = "$current_session" ]; then
+    # Sort by session_activity desc, skip the victim, take the MRU survivor.
+    next=$(tmux list-sessions -F '#{session_activity} #{session_name}' 2>/dev/null \
+      | sort -rn | awk -v v="$victim" '{ $1=""; sub(/^ /,""); if ($0 != v) { print; exit } }')
+    if [ -z "$next" ]; then
+      printf 'refusing to kill %s: it is the only session\n' "$victim" >&2
+      return 1
+    fi
+    tmux switch-client -t "=$next"
+  fi
+  tmux kill-session -t "=$victim"
+}
+
+# Single git call per path: emits "top<TAB>common<TAB>branch". Empty if not a
+# git dir. Avoids the previous 3-4 separate git invocations per session.
+git_probe() {
+  local p=$1
+  [ -z "$p" ] && return 1
+  git -C "$p" rev-parse --show-toplevel --git-common-dir --abbrev-ref HEAD 2>/dev/null \
+    | tr '\n' '\t'
+}
+
+current_session=$(tmux display-message -p '#S' 2>/dev/null || true)
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+claimed="$tmpdir/claimed"   # newline-delimited realpaths claimed by a live session
+: >"$claimed"
+rows="$tmpdir/rows"         # display rows
+: >"$rows"
+
+# order key: 0 current, 1 live, 2 dormant, 3 plain ; then name
+# Columns sized to fit a ~72-col popup:
+#   dot(1) icon(1) name(24) branch(20) win(4)
+emit_row() {
+  local order=$1 sortkey=$2 life=$3 icon=$4 name=$5 branch=$6 windows=$7 action=$8
+  local dot dotcolor namecolor wincolor winval
+
+  case "$life" in
+    current) dot=$dot_current; dotcolor=$ctp_mauve ;;
+    live)    dot=$dot_live; dotcolor=$ctp_overlay ;;
+    dormant) dot=$dot_dormant; dotcolor=$ctp_overlay ;;
+  esac
+
+  if [ "$order" = "0" ]; then namecolor=$ctp_lavender; else namecolor=$ctp_subtext; fi
+
+  if [ -n "$windows" ]; then
+    wincolor=$ctp_subtext; winval=$windows
+  else
+    wincolor=$ctp_overlay; winval='·'
+  fi
+
+  # One printf, width specifiers do the padding (no inner subshells). Color
+  # codes wrap the padded fields and don't affect column width.
+  # Fields: order \t sortkey \t action \t display
+  printf '%s\t%s\t%s\t%b %b  %b%-30.30s%b  %b%-18.18s%b  %b%s%b\n' \
+    "$order" "$sortkey" "$action" \
+    "${dotcolor}${dot}${ctp_reset}" "$icon" \
+    "$namecolor" "$name" "$ctp_reset" \
+    "$ctp_subtext" "${branch:--}" "$ctp_reset" \
+    "$wincolor" "$winval" "$ctp_reset" \
+    >>"$rows"
+}
+
+# --- 1. Classify every tmux session (Model B) -----------------------------
+# session_activity is an epoch timestamp; we sort live rows by it (desc) so the
+# list is in most-recently-used order. @wks_root is read inline here (one
+# list-sessions call) instead of a per-session show-options round-trip.
+#
+# git probes are the dominant cost, so we fan them out in parallel: pass 1
+# reads sessions and launches a background git_probe per session writing to a
+# temp file; pass 2 waits, then collects + emits.
+probedir="$tmpdir/probe"
+mkdir -p "$probedir"
+
+i=0
+s_name=(); s_win=(); s_act=(); s_root=()
+while IFS=$'\t' read -r sname swindows sactivity sroot; do
+  [ -z "$sname" ] && continue
+
+  if [ -n "$sroot" ]; then
+    root=$sroot
+  else
+    root=$(realpath_safe "$(session_pane_path "$sname")" || true)
+  fi
+
+  s_name[$i]=$sname
+  s_win[$i]=$swindows
+  s_act[$i]=${sactivity:-0}
+  s_root[$i]=$root
+
+  # Fire the git probe in the background.
+  if [ -n "$root" ]; then
+    git_probe "$root" >"$probedir/$i" 2>/dev/null &
+  else
+    : >"$probedir/$i"
+  fi
+  i=$((i + 1))
+done < <(tmux list-sessions -F '#{session_name}	#{session_windows}	#{session_activity}	#{@wks_root}' 2>/dev/null || true)
+
+wait
+
+n=$i
+i=0
+while [ "$i" -lt "$n" ]; do
+  sname=${s_name[$i]}
+  win_label="${s_win[$i]}w"
+  sortkey=${s_act[$i]}
+
+  order=0
+  if [ "$sname" = "$current_session" ]; then
+    life=current
+  else
+    life=live
+  fi
+
+  probe=$(<"$probedir/$i")   # builtin read, no fork
+  if [ -n "$probe" ]; then
+    top=${probe%%$'\t'*}
+    rest=${probe#*$'\t'}
+    common=${rest%%$'\t'*}
+    branch=${rest#*$'\t'}
+    branch=${branch%$'\t'}
+    case "$common" in
+      "$top"/.git|"$top"/.git/) icon=$icon_checkout ;;
+      *)                        icon=$icon_worktree ;;
+    esac
+    printf '%s\n' "$top" >>"$claimed"
+    emit_row "$order" "$sortkey" "$life" "$icon" "$sname" "$branch" "$win_label" "switch:$sname"
+  else
+    emit_row 0 "$sortkey" "$life" "$icon_plain" "$sname" "" "$win_label" "switch:$sname"
+  fi
+  i=$((i + 1))
+done
+
+# --- 2. Add dormant workspaces from the current repo ----------------------
+# Mirror `wks rows`: the main checkout plus every dir under <main>/.workspaces.
+# Done inline (no wks binary spawn). Branch is read per dormant dir, but only
+# dormant ones (no live session) reach that git call, so it stays cheap.
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+if [ -n "$common_dir" ]; then
+  main_root=$(cd "$common_dir/.." 2>/dev/null && pwd -P)
+  ws_dir="$main_root/.workspaces"
+
+  emit_dormant() {
+    local p=$1 icon=$2 name rp branch
+    rp=$(realpath_safe "$p" || true)
+    grep -qxF "$rp" "$claimed" 2>/dev/null && return
+    name=$(basename "$rp")
+    branch=$(git -C "$rp" symbolic-ref --short -q HEAD 2>/dev/null || echo '?')
+    emit_row 1 0 dormant "$icon" "$name" "$branch" "" "wksdir:$rp:$name"
+  }
+
+  emit_dormant "$main_root" "$icon_checkout"
+  if [ -d "$ws_dir" ]; then
+    for d in "$ws_dir"/*; do
+      [ -d "$d" ] || continue
+      git -C "$d" rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue
+      emit_dormant "$d" "$icon_worktree"
+    done
+  fi
+fi
+
+if [ ! -s "$rows" ]; then
+  # Not in a repo and no sessions matched anything useful; defer to sessions.
+  [ -x "$session_switch" ] && exec "$session_switch"
+  exit 0
+fi
+
+# --- 3. Pick -------------------------------------------------------------
+result=$(
+  sort -t '	' -k1,1n -k2,2nr "$rows" | cut -f3- |
+    fzf --ansi --color="$fzf_colors" \
+      --prompt='workspace> ' \
+      --header='enter:switch ^n:new ^c:clone ^o:repo ^g:dir ^d:del ^r:rename esc:cancel' \
+      --height=100% --layout=reverse --border=rounded \
+      --delimiter=$'\t' --with-nth=2 \
+      --expect=ctrl-n,ctrl-c,ctrl-o,ctrl-g,ctrl-d,ctrl-r
+)
+
+[ -n "$result" ] || exit 0
+
+key=$(printf '%s\n' "$result" | sed -n '1p')
+selection=$(printf '%s\n' "$result" | sed -n '2p')
+
+# action field is everything before the first tab
+action=${selection%%$'\t'*}
+kind=${action%%:*}
+rest=${action#*:}
+
+# For wksdir the rest is "path:name"; otherwise rest is the session/ws name.
+ws_path=""
+ws_name=""
+session_target=""
+case "$kind" in
+  wksdir)
+    ws_path=${rest%%:*}
+    ws_name=${rest#*:}
+    ;;
+  switch)
+    session_target=$rest
+    ;;
+esac
+
+case "$key" in
+  ctrl-n)
+    # Resolve the selected row's root so "new" operates on the right context.
+    sel_root=""
+    case "$kind" in
+      wksdir) sel_root=$ws_path ;;
+      switch)
+        sel_root=$(tmux show-options -t "$session_target" -qv @wks_root 2>/dev/null || true)
+        [ -z "$sel_root" ] && sel_root=$(session_pane_path "$session_target")
+        ;;
+    esac
+
+    # spawn_session NAME DIR: create a detached session in DIR, stamp its root,
+    # and switch to it. Refuses if the name is taken.
+    spawn_session() {
+      local sname=$1 sdir=$2
+      if tmux has-session -t "=$sname" 2>/dev/null; then
+        printf 'session %s already exists\n' "$sname" >&2
+        return 1
+      fi
+      tmux new-session -d -s "$sname" -c "$sdir"
+      tmux set-option -t "$sname" @wks_root "$sdir"
+      tmux switch-client -t "=$sname"
+    }
+
+    if [ -n "$sel_root" ] && git -C "$sel_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      # Git row: pick what to create. plain/fix/feat make a worktree;
+      # clone just spawns another session for the same checkout (no worktree).
+      printf 'New [p]lain / [f]ix / fea[t] worktree, or [c]lone session? ' >&2
+      read -r bk </dev/tty || bk=p
+      if [ "$bk" = "c" ] || [ "$bk" = "clone" ] || [ "$bk" = "s" ]; then
+        new_name=$(prompt_edit 'new session> ' '') || exit 0
+        [ -z "$new_name" ] && exit 0
+        spawn_session "$new_name" "$sel_root"
+        exit $?
+      fi
+      new_name=$(prompt_edit 'new workspace> ' '') || exit 0
+      [ -z "$new_name" ] && exit 0
+      case "$bk" in
+        f|fix)  ( cd "$sel_root" && exec "$wks_cmd" new --fix "$new_name" ) ;;
+        t|feat) ( cd "$sel_root" && exec "$wks_cmd" new --feat "$new_name" ) ;;
+        *)      ( cd "$sel_root" && exec "$wks_cmd" new "$new_name" ) ;;
+      esac
+      exit $?
+    else
+      # Plain directory: spawn a sibling tmux session in the same dir.
+      [ -z "$sel_root" ] && sel_root=$HOME
+      new_name=$(prompt_edit 'new session> ' '') || exit 0
+      [ -z "$new_name" ] && exit 0
+      spawn_session "$new_name" "$sel_root"
+      exit $?
+    fi
+    ;;
+  ctrl-o)
+    # Open a repo on disk that we may not have a session for yet. Fuzzy-find a
+    # git repo under $code_root, then let naked `wks` reuse-or-create its
+    # session (the cd happens in a subshell so wks resolves the right repo).
+    if [ ! -d "$code_root" ]; then
+      printf 'code root not found: %s\n' "$code_root" >&2
+      exit 1
+    fi
+    if command -v fd >/dev/null 2>&1; then
+      # -I (--no-ignore) so .gitignore/.ignore rules can't hide repos; -H for
+      # the hidden .git itself. Excludes keep vendored/nested repos and wks
+      # worktrees out of the list.
+      repos=$(fd -H -I '^\.git$' "$code_root" \
+                -E node_modules -E .venv -E vendor -E site-packages \
+                -E .workspaces -E target -E .cache 2>/dev/null \
+              | sed 's#/\.git/\{0,1\}$##')
+    else
+      repos=$(find "$code_root" -name .git \
+                ! -path '*/node_modules/*' ! -path '*/.venv/*' \
+                ! -path '*/vendor/*' ! -path '*/site-packages/*' \
+                ! -path '*/.workspaces/*' ! -path '*/target/*' 2>/dev/null \
+              | sed 's#/\.git$##')
+    fi
+    repos=$(printf '%s\n' "$repos" | sort -u)
+    [ -z "$repos" ] && { printf 'no repos under %s\n' "$code_root" >&2; exit 1; }
+
+    # Show repo paths relative to code_root for a compact list.
+    repo=$(
+      printf '%s\n' "$repos" \
+        | sed "s#^$code_root/##" \
+        | fzf --ansi --color="$fzf_colors" --prompt='open repo> ' \
+            --height=100% --layout=reverse --border=rounded
+    )
+    [ -z "$repo" ] && exit 0
+    ( cd "$code_root/$repo" && exec "$wks_cmd" )
+    exit $?
+    ;;
+  ctrl-c)
+    # Clone a GitHub repo and open a session for it. Fuzzy-find across your gh
+    # repos and every org you belong to. Override the org set with WKS_GH_ORGS
+    # (space-separated) to limit it. You can also just TYPE any owner/repo not
+    # in the list. wks clone handles the clone (via cleanclone) + session.
+    if command -v gh >/dev/null 2>&1; then
+      # Orgs: explicit override, else auto-discover from your memberships.
+      if [ -n "${WKS_GH_ORGS:-}" ]; then
+        orgs=$WKS_GH_ORGS
+      else
+        orgs=$(gh api user/orgs -q '.[].login' 2>/dev/null | tr '\n' ' ')
+      fi
+      # Fire all gh queries in parallel (one per account/org) so the list
+      # populates in ~1 call's time instead of N serial calls. fzf streams
+      # stdin, so rows appear as they arrive; --print-query lets a typed
+      # owner/repo win. The selected row (or typed query) is the last line.
+      repo=$(
+        {
+          gh repo list --limit "${WKS_GH_LIMIT:-200}" \
+            --json nameWithOwner -q '.[].nameWithOwner' 2>/dev/null &
+          for org in $orgs; do
+            gh repo list "$org" --limit "${WKS_GH_LIMIT:-200}" \
+              --json nameWithOwner -q '.[].nameWithOwner' 2>/dev/null &
+          done
+          wait
+        } | fzf --print-query --color="$fzf_colors" --prompt='clone> ' \
+              --height=100% --layout=reverse --border=rounded \
+              --header='select a repo or type owner/repo' \
+          | sed -n '$p'
+      )
+    else
+      repo=$(prompt_edit 'clone (owner/repo)> ' '')
+    fi
+    [ -z "$repo" ] && exit 0
+    exec "$wks_cmd" clone "$repo"
+    ;;
+  ctrl-g)
+    # Open an arbitrary directory. The list is zoxide's frecency-ranked dirs
+    # (the places you actually visit, hidden or not). You can also just TYPE a
+    # path -- --print-query means an un-listed path (e.g. ~/.config/foo) still
+    # opens. Tilde and $HOME are expanded by open_dir.
+    if command -v zoxide >/dev/null 2>&1; then
+      dirs=$(zoxide query -l 2>/dev/null)
+    else
+      dirs=$(fd -t d --max-depth "${WKS_DIR_DEPTH:-3}" -E node_modules -E .git \
+               . "${WKS_DIR_ROOT:-$HOME}" 2>/dev/null)
+    fi
+    sel=$(
+      printf '%s\n' "$dirs" \
+        | fzf --print-query --color="$fzf_colors" --prompt='open dir> ' \
+            --height=100% --layout=reverse --border=rounded \
+            --header='type a path for anything not listed'
+    )
+    # Lines: query (1), selection (2). Prefer the selection; fall back to the
+    # typed query so hidden / unlisted paths work.
+    g_query=$(printf '%s\n' "$sel" | sed -n '1p')
+    g_pick=$(printf '%s\n' "$sel" | sed -n '2p')
+    target_dir=${g_pick:-$g_query}
+    [ -z "$target_dir" ] && exit 0
+    open_dir "$target_dir"
+    exit $?
+    ;;
+  ctrl-d)
+    if [ "$kind" = "wksdir" ]; then
+      ( cd "$ws_path" && exec "$wks_cmd" rm )
+      exit $?
+    elif [ "$kind" = "switch" ]; then
+      # Live/current session. Resolve its root; if it's a workspace, let wks
+      # handle the lifecycle from inside it; else just kill the session.
+      sroot=$(tmux show-options -t "$session_target" -qv @wks_root 2>/dev/null || true)
+      [ -z "$sroot" ] && sroot=$(session_pane_path "$session_target")
+      printf 'Delete/kill %s? [y/N] ' "$session_target" >&2
+      read -r confirm </dev/tty || exit 0
+      [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || exit 0
+      if [ -n "$wks_cmd" ] && [ -n "$sroot" ] && ( cd "$sroot" 2>/dev/null && "$wks_cmd" rm ) 2>/dev/null; then
+        exit 0
+      fi
+      safe_kill_session "$session_target"
+    fi
+    ;;
+  ctrl-r)
+    if [ "$kind" = "wksdir" ]; then
+      new_name=$(prompt_edit 'rename> ' "$ws_name") || exit 0
+      [ -z "$new_name" ] && exit 0
+      [ "$new_name" = "$ws_name" ] && exit 0
+      exec "$wks_cmd" rename "$ws_name" "$new_name"
+    elif [ "$kind" = "switch" ]; then
+      new_name=$(prompt_edit 'rename> ' "$session_target") || exit 0
+      [ -z "$new_name" ] && exit 0
+      [ "$new_name" = "$session_target" ] && exit 0
+      # A live session row may be a workspace (rename via wks) or a plain
+      # session (just rename the tmux session).
+      sroot=$(tmux show-options -t "$session_target" -qv @wks_root 2>/dev/null || true)
+      if [ -n "$sroot" ] && git -C "$sroot" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+         && [ "$(realpath_safe "$sroot")" != "$(realpath_safe "$(git -C "$sroot" rev-parse --show-toplevel 2>/dev/null)")" ]; then
+        # worktree session -> wks rename handles dir + branch + session
+        exec "$wks_cmd" rename "$session_target" "$new_name"
+      else
+        # checkout or plain session -> just rename the tmux session + keep root
+        tmux rename-session -t "=$session_target" "$new_name"
+        [ -n "$sroot" ] && tmux set-option -t "$new_name" @wks_root "$sroot"
+      fi
+    fi
+    ;;
+  *)
+    # enter: switch to or create+attach the session
+    if [ "$kind" = "switch" ]; then
+      tmux switch-client -t "=$session_target"
+    elif [ "$kind" = "wksdir" ]; then
+      # cd into the workspace and let naked wks ensure + attach its session.
+      ( cd "$ws_path" && exec "$wks_cmd" )
+      exit $?
+    fi
+    ;;
+esac

@@ -56,7 +56,7 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 
 repository=$1
-echo "cloning $repository"
+emsg "resolving $repository"
 
 # Fully qualify the repository name
 repository=$(gh repo view --json nameWithOwner -t '{{.nameWithOwner}}' $repository)
@@ -65,11 +65,17 @@ repository=$(gh repo view --json nameWithOwner -t '{{.nameWithOwner}}' $reposito
 # github for now.
 checkout="$CODEHOME/github.com/$repository"
 
-mkdir -p "$checkout"
-
+# Idempotent: if already cloned, just report the path so callers can use it.
 if [ -d "$checkout/.git" ]; then
   emsg "$checkout already exists"
-  exit 1
+  echo "$checkout"
+  exit 0
 fi
 
-gh repo clone "$repository" "$checkout"
+mkdir -p "$checkout"
+emsg "cloning $repository -> $checkout"
+gh repo clone "$repository" "$checkout" 1>&2
+
+# The checkout path is the only thing printed on stdout, so callers can do:
+#   path=$(cleanclone owner/repo)
+echo "$checkout"

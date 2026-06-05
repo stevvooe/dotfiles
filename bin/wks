@@ -9,43 +9,41 @@ emsg() {
 usage() {
   cat <<'EOF'
 Usage:
-  wks                  # interactive switch (fzf)
+  wks                  # ensure + attach the tmux session for the current workspace
   wks ls [--status]
-  wks new <name> [--base <ref>]
-  wks new --fix <name> [--base <ref>]
-  wks new --feat <name> [--base <ref>]
-  wks new <name> --branch <branch> [--base <ref>]
+  wks new <name> [--base <ref>] [--no-attach]
+  wks new --fix <name> [--base <ref>] [--no-attach]
+  wks new --feat <name> [--base <ref>] [--no-attach]
+  wks new <name> --branch <branch> [--base <ref>] [--no-attach]
   wks names
   wks rows
   wks diff [name]
   wks sw [name]
   wks switch [name]
-  wks tmux [name]
-  wks tmux --new <name> [--base <ref>]
-  wks tmux --new --fix <name> [--base <ref>]
-  wks tmux --new --feat <name> [--base <ref>]
-  wks tmux --new <name> --branch <branch> [--base <ref>]
-  wks oc [name] [-- <opencode-args...>]
-  wks oc --new <name> [--base <ref>] [-- <opencode-args...>]
-  wks oc --new --fix <name> [--base <ref>] [-- <opencode-args...>]
-  wks oc --new --feat <name> [--base <ref>] [-- <opencode-args...>]
-  wks oc --new <name> --branch <branch> [--base <ref>] [-- <opencode-args...>]
   wks rename <old> <new>
-  wks rm <name> [--force] [--prune-branch]
+  wks rm [name] [--force] [--prune-branch]
+  wks clone <owner/repo>
+  wks adopt [--all]
   wks path [name]
 
 Commands:
+  (no args)            Ensure + attach the tmux session for the current workspace.
+                       Outside a workspace, fall back to the session picker.
   ls [--status]        List worktrees (--status adds dirty/clean check)
-  new                  Create .workspaces/<name> from --base (default: origin/HEAD)
+  new                  Create .workspaces/<name> from --base (default: origin/HEAD),
+                       then attach its session (--no-attach to skip)
   names                Print workspace names (for scripting/completion)
   rows                 Print tab-delimited workspace rows (name, branch, state, path)
   diff                 Show git status and diff for a workspace
   sw, switch           Print selected workspace path (fzf when no name)
-  tmux                 Launch devtmux in a workspace; use --new to create first
-  oc                   Launch opencode in a workspace; use --new to create first
   rename               Rename workspace directory, wks/* branch, and tmux session
-  rm                   Remove workspace worktree (refuses dirty unless --force)
-                       --prune-branch deletes the local branch after removal
+  rm                   Lifecycle-aware delete. Checkout: kill its session only.
+                       Worktree: kill session (if any) and remove the worktree;
+                       refuses dirty unless --force. --prune-branch deletes the
+                       local branch after removal. Defaults to current workspace.
+  clone                Clone a GitHub repo (owner/repo) via cleanclone into
+                       $CODEHOME and open a session. Idempotent if it exists.
+  adopt                Backfill @wks_root on the current session (--all: every session)
   path                 Print current workspace root, or named workspace path
 
 Notes:
@@ -53,7 +51,8 @@ Notes:
   - New workspaces default to branch wks/<name>
   - --fix/--feat create fix/<user>/<name> or feat/<user>/<name>
   - --branch uses an explicit branch name
-  - wks oc defaults to edit and todowrite permission allow unless OPENCODE_PERMISSION is already set
+  - Session names are short (checkout basename, worktree name); the canonical
+    workspace identity is the path. Sessions store @wks_root for identity.
   - Use a shell wrapper to cd after switch output
 EOF
 }
@@ -302,35 +301,302 @@ consume_option_value() {
   printf '%s\n' "$1"
 }
 
-devtmux_cmd() {
+github_repo_slug() {
+  local path=$1
+  local remote_url slug
+
+  remote_url=$(git -C "$path" config --get remote.origin.url 2>/dev/null || true)
+  if [ -z "$remote_url" ]; then
+    return 1
+  fi
+
+  case "$remote_url" in
+    git@github.com:*)
+      slug=${remote_url#git@github.com:}
+      ;;
+    https://github.com/*)
+      slug=${remote_url#https://github.com/}
+      ;;
+    ssh://git@github.com/*)
+      slug=${remote_url#ssh://git@github.com/}
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  slug=${slug%.git}
+  if [[ ! "$slug" =~ ^[^/]+/[^/]+$ ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "$slug"
+}
+
+sanitize_session_name() {
+  local name=$1
+
+  name=${name//\//-}
+  name=${name// /-}
+  name=${name//:/-}
+  name=${name//[^A-Za-z0-9._-]/-}
+  while [[ "$name" == .* || "$name" == -* ]]; do
+    name=${name#.}
+    name=${name#-}
+  done
+
+  if [ -z "$name" ]; then
+    name=dev
+  fi
+
+  printf '%s\n' "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
+}
+
+workspace_kind_for() {
+  local path=$1
+
+  if [ "$path" = "$main_root" ]; then
+    printf 'checkout\n'
+  else
+    printf 'worktree\n'
+  fi
+}
+
+# Active pane cwd for a session. display-message -t '=name' does not resolve
+# pane_current_path reliably, so use list-panes filtered to the active pane.
+session_pane_path() {
+  tmux list-panes -t "=$1" -F '#{?pane_active,#{pane_current_path},}' 2>/dev/null \
+    | grep -v '^$' | head -1
+}
+
+# Resolve the @wks_root for a session, falling back to its active pane cwd.
+session_root() {
+  local session=$1
+  local root
+
+  root=$(tmux show-options -t "$session" -qv @wks_root 2>/dev/null || true)
+  if [ -n "$root" ]; then
+    printf '%s\n' "$root"
+    return 0
+  fi
+
+  session_pane_path "$session"
+}
+
+# Compute the short tmux session name for a workspace path.
+# worktree -> tree name; checkout -> basename, bumping to owner-repo on live collision.
+session_name_for() {
+  local path=$1
+  local kind name base slug existing_root
+
+  kind=$(workspace_kind_for "$path")
+
+  if [ "$kind" = "worktree" ]; then
+    sanitize_session_name "$(basename "$path")"
+    return 0
+  fi
+
+  base=$(sanitize_session_name "$(basename "$path")")
+
+  # Collision check: live session of this name pointing at a different root.
+  if tmux has-session -t "=$base" 2>/dev/null; then
+    existing_root=$(session_root "$base")
+    if [ -n "$existing_root" ] && [ "$existing_root" != "$path" ]; then
+      slug=$(github_repo_slug "$path" || true)
+      if [ -n "$slug" ]; then
+        sanitize_session_name "$slug"
+        return 0
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$base"
+}
+
+# Create the tmux session + window layout if missing, stamping @wks_root.
+ensure_session() {
+  local path=$1
+  local session=$2
+
+  if tmux has-session -t "=$session" 2>/dev/null; then
+    return 0
+  fi
+
+  tmux new-session -d -s "$session" -n dev -c "$path"
+  tmux set-option -t "$session" @wks_root "$path"
+  tmux split-window -h -t "=$session":dev -c "$path"
+  tmux new-window -t "=$session":2 -n zsh -c "$path"
+  tmux select-window -t "=$session":dev
+  tmux select-pane -t "=$session":dev.1
+}
+
+attach_or_switch() {
+  local session=$1
+
+  if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "=$session"
+  else
+    tmux attach-session -t "=$session"
+  fi
+}
+
+# Kill a session safely. If it is the session we are attached to, switch the
+# client to the most-recently-used other session first so tmux does not exit.
+safe_kill_session() {
+  local victim=$1 next
+
+  if [ -n "${TMUX:-}" ] && [ "$(tmux display-message -p '#S')" = "$victim" ]; then
+    # Sort by session_activity desc, skip the victim, take the MRU survivor.
+    next=$(tmux list-sessions -F '#{session_activity} #{session_name}' 2>/dev/null \
+      | sort -rn | awk -v v="$victim" '{ $1=""; sub(/^ /,""); if ($0 != v) { print; exit } }')
+    if [ -z "$next" ]; then
+      emsg "refusing to kill $victim: it is the only session"
+      return 1
+    fi
+    tmux switch-client -t "=$next"
+  fi
+  tmux kill-session -t "=$victim"
+}
+
+# Find an existing session whose @wks_root matches the given path. This is the
+# canonical (path-based) identity, so a workspace is never double-sessioned
+# just because an old session uses a drifted name (e.g. stevvooe-dotfiles).
+session_for_root() {
+  local want=$1 s root
+  [ -z "$want" ] && return 1
+
+  while IFS= read -r s; do
+    [ -z "$s" ] && continue
+    root=$(tmux show-options -t "$s" -qv @wks_root 2>/dev/null || true)
+    if [ -n "$root" ] && [ "$root" = "$want" ]; then
+      printf '%s\n' "$s"
+      return 0
+    fi
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null || true)
+
+  return 1
+}
+
+# Naked `wks`: ensure + attach the session for the current workspace. Reuses an
+# existing session for this path if one already exists (under any name).
+cmd_attach_current() {
+  local path session
+
+  path=$current_root
+
+  # Prefer an existing session already bound to this path.
+  if session=$(session_for_root "$path"); then
+    attach_or_switch "$session"
+    return 0
+  fi
+
+  session=$(session_name_for "$path")
+  ensure_session "$path" "$session"
+  attach_or_switch "$session"
+}
+
+# Open a session for an arbitrary path: reuse an existing one bound to it,
+# otherwise create + attach. Used by `clone` and any "open this dir" flow.
+open_path() {
+  local path=$1 session
+
+  if session=$(session_for_root "$path"); then
+    attach_or_switch "$session"
+    return 0
+  fi
+
+  session=$(session_name_for "$path")
+  ensure_session "$path" "$session"
+  attach_or_switch "$session"
+}
+
+cleanclone_cmd() {
   local cmd
-
-  cmd=$(command -v devtmux 2>/dev/null || true)
-  if [ -z "$cmd" ] && [ -x "$main_root/bin/devtmux" ]; then
-    cmd=$main_root/bin/devtmux
+  cmd=$(command -v cleanclone 2>/dev/null || true)
+  if [ -z "$cmd" ] && [ -x "$HOME/.dotfiles/bin/cleanclone" ]; then
+    cmd=$HOME/.dotfiles/bin/cleanclone
   fi
-
-  if [ -z "$cmd" ]; then
-    emsg "error: devtmux not found in PATH"
-    exit 1
-  fi
-
   printf '%s\n' "$cmd"
 }
 
-launch_devtmux() {
-  local path=$1
-  local cmd name
+# Clone a GitHub repo (short name, e.g. owner/repo) via cleanclone, then open a
+# session in the checkout. Idempotent: an existing checkout is just opened.
+cmd_clone() {
+  local repo cc path
 
-  cmd=$(devtmux_cmd)
-  if [ "$path" = "$main_root" ]; then
-    cd "$path"
-    exec env WKS_ROOT="$path" "$cmd"
+  repo=${1:-}
+  if [ -z "$repo" ]; then
+    emsg "error: usage: wks clone <owner/repo>"
+    exit 1
+  fi
+  if [ $# -gt 1 ]; then
+    emsg "error: unexpected extra argument '$2'"
+    exit 1
   fi
 
-  name=$(basename "$path")
+  cc=$(cleanclone_cmd)
+  if [ -z "$cc" ]; then
+    emsg "error: cleanclone not found in PATH"
+    exit 1
+  fi
+
+  # cleanclone prints the checkout path on stdout (only); progress is on stderr.
+  path=$("$cc" "$repo") || exit $?
+  if [ -z "$path" ] || [ ! -d "$path" ]; then
+    emsg "error: clone did not produce a checkout path"
+    exit 1
+  fi
+
+  # Enter the new checkout and establish repo context so naming classifies it
+  # as a checkout (not a worktree) before opening the session.
   cd "$path"
-  exec env WKS_NAME="$name" WKS_ROOT="$path" "$cmd"
+  init_repo_paths
+  open_path "$current_root"
+}
+
+cmd_adopt() {
+  local all=0 session root top
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --all) all=1; shift ;;
+      *) emsg "error: unknown option '$1'"; exit 1 ;;
+    esac
+  done
+
+  if [ -z "${TMUX:-}" ] && [ "$all" -eq 0 ]; then
+    emsg "error: not in a tmux session (use --all to adopt every session)"
+    exit 1
+  fi
+
+  adopt_one() {
+    local s=$1 cwd resolved
+
+    if [ -n "$(tmux show-options -t "$s" -qv @wks_root 2>/dev/null || true)" ]; then
+      return 0
+    fi
+
+    cwd=$(session_pane_path "$s")
+    [ -z "$cwd" ] && return 0
+
+    if top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
+      resolved=$top
+    else
+      resolved=$cwd
+    fi
+
+    tmux set-option -t "$s" @wks_root "$resolved"
+    emsg "adopted $s -> $resolved"
+  }
+
+  if [ "$all" -eq 1 ]; then
+    while IFS= read -r session; do
+      [ -n "$session" ] && adopt_one "$session"
+    done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null || true)
+  else
+    session=$(tmux display-message -p '#S')
+    adopt_one "$session"
+  fi
 }
 
 cmd_ls() {
@@ -442,295 +708,34 @@ pick_workspace_path() {
   printf '%s\n' "$path"
 }
 
-cmd_oc() {
-  local name path create_new base branch branch_kind explicit_branch base_explicit
-  local -a opencode_args
+# Create the worktree only; prints the new path on stdout. No tmux side effects.
+create_worktree() {
+  local name=$1 base=$2 branch=$3 target
 
-  if ! command -v opencode >/dev/null 2>&1; then
-    emsg "error: opencode not found in PATH"
+  validate_workspace_name "$name"
+  validate_branch_name "$branch"
+  target="$workspaces_dir/$name"
+
+  if [ -e "$target" ]; then
+    emsg "error: workspace path already exists: $target"
     exit 1
   fi
 
-  name=
-  create_new=0
-  base=
-  branch=
-  branch_kind=
-  explicit_branch=
-  base_explicit=0
-  opencode_args=()
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --new)
-        create_new=1
-        shift
-        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-          name=$1
-          shift
-        fi
-        ;;
-      --new=*)
-        create_new=1
-        name=${1#--new=}
-        shift
-        ;;
-      --base)
-        shift
-        if [ $# -eq 0 ]; then
-          emsg "error: --base requires a ref"
-          exit 1
-        fi
-        base=$1
-        base_explicit=1
-        shift
-        ;;
-      --branch)
-        shift
-        explicit_branch=$(consume_option_value --branch "branch name" "$@")
-        shift
-        ;;
-      --branch=*)
-        explicit_branch=${1#--branch=}
-        if [ -z "$explicit_branch" ]; then
-          emsg "error: --branch requires a branch name"
-          exit 1
-        fi
-        shift
-        ;;
-      --fix)
-        shift
-        branch_kind=$(set_branch_kind "$branch_kind" fix)
-        if [ -n "$name" ]; then
-          continue
-        fi
-        name=$(consume_option_value --fix "workspace name" "$@")
-        shift
-        ;;
-      --fix=*)
-        if [ -n "$name" ]; then
-          emsg "error: workspace name already set to '$name'"
-          exit 1
-        fi
-        branch_kind=$(set_branch_kind "$branch_kind" fix)
-        name=${1#--fix=}
-        shift
-        ;;
-      --feat)
-        shift
-        branch_kind=$(set_branch_kind "$branch_kind" feat)
-        if [ -n "$name" ]; then
-          continue
-        fi
-        name=$(consume_option_value --feat "workspace name" "$@")
-        shift
-        ;;
-      --feat=*)
-        if [ -n "$name" ]; then
-          emsg "error: workspace name already set to '$name'"
-          exit 1
-        fi
-        branch_kind=$(set_branch_kind "$branch_kind" feat)
-        name=${1#--feat=}
-        shift
-        ;;
-      --)
-        shift
-        opencode_args+=("$@")
-        break
-        ;;
-      -* )
-        opencode_args+=("$1")
-        shift
-        ;;
-      *)
-        if [ -z "$name" ]; then
-          name=$1
-        else
-          opencode_args+=("$1")
-        fi
-        shift
-        ;;
-    esac
-  done
-
-  if [ "$create_new" -eq 1 ]; then
-    if [ -z "$name" ]; then
-      emsg "error: --new requires a workspace name"
-      exit 1
-    fi
-    if [ "$base_explicit" -eq 0 ]; then
-      base=$(default_workspace_base)
-    fi
-    branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
-    path=$(cmd_new "$name" --base "$base" --branch "$branch")
-  else
-    if [ "$base_explicit" -eq 1 ]; then
-      emsg "error: --base can only be used with --new"
-      exit 1
-    fi
-    if [ -n "$explicit_branch" ] || [ -n "$branch_kind" ]; then
-      emsg "error: --branch, --fix, and --feat can only be used with --new"
-      exit 1
-    fi
-    if [ -n "$name" ]; then
-      path=$(resolve_workspace_path "$name")
-    else
-      path=$(pick_workspace_path)
-    fi
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    emsg "error: branch already exists: $branch"
+    exit 1
   fi
 
-  set -- ${opencode_args[@]+"${opencode_args[@]}"}
-
-  if [ -z "${OPENCODE_PERMISSION:-}" ]; then
-    exec env OPENCODE_PERMISSION='{"edit":"allow","todowrite":"allow"}' opencode "$path" "$@"
-  fi
-
-  exec opencode "$path" "$@"
-}
-
-cmd_tmux() {
-  local name path create_new base branch branch_kind explicit_branch base_explicit
-
-  name=
-  create_new=0
-  base=
-  branch=
-  branch_kind=
-  explicit_branch=
-  base_explicit=0
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --new)
-        create_new=1
-        shift
-        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-          name=$1
-          shift
-        fi
-        ;;
-      --new=*)
-        create_new=1
-        name=${1#--new=}
-        shift
-        ;;
-      --base)
-        shift
-        if [ $# -eq 0 ]; then
-          emsg "error: --base requires a ref"
-          exit 1
-        fi
-        base=$1
-        base_explicit=1
-        shift
-        ;;
-      --branch)
-        shift
-        explicit_branch=$(consume_option_value --branch "branch name" "$@")
-        shift
-        ;;
-      --branch=*)
-        explicit_branch=${1#--branch=}
-        if [ -z "$explicit_branch" ]; then
-          emsg "error: --branch requires a branch name"
-          exit 1
-        fi
-        shift
-        ;;
-      --fix)
-        shift
-        branch_kind=$(set_branch_kind "$branch_kind" fix)
-        if [ -n "$name" ]; then
-          continue
-        fi
-        name=$(consume_option_value --fix "workspace name" "$@")
-        shift
-        ;;
-      --fix=*)
-        if [ -n "$name" ]; then
-          emsg "error: workspace name already set to '$name'"
-          exit 1
-        fi
-        branch_kind=$(set_branch_kind "$branch_kind" fix)
-        name=${1#--fix=}
-        shift
-        ;;
-      --feat)
-        shift
-        branch_kind=$(set_branch_kind "$branch_kind" feat)
-        if [ -n "$name" ]; then
-          continue
-        fi
-        name=$(consume_option_value --feat "workspace name" "$@")
-        shift
-        ;;
-      --feat=*)
-        if [ -n "$name" ]; then
-          emsg "error: workspace name already set to '$name'"
-          exit 1
-        fi
-        branch_kind=$(set_branch_kind "$branch_kind" feat)
-        name=${1#--feat=}
-        shift
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      -* )
-        emsg "error: unknown option '$1'"
-        exit 1
-        ;;
-      *)
-        if [ -n "$name" ]; then
-          emsg "error: unexpected extra argument '$1'"
-          exit 1
-        fi
-        name=$1
-        shift
-        ;;
-    esac
-  done
-
-  if [ "$create_new" -eq 1 ]; then
-    if [ -z "$name" ]; then
-      emsg "error: --new requires a workspace name"
-      exit 1
-    fi
-    if [ "$base_explicit" -eq 0 ]; then
-      base=$(default_workspace_base)
-    fi
-    branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
-    path=$(cmd_new "$name" --base "$base" --branch "$branch")
-  else
-    if [ "$base_explicit" -eq 1 ]; then
-      emsg "error: --base can only be used with --new"
-      exit 1
-    fi
-    if [ -n "$explicit_branch" ] || [ -n "$branch_kind" ]; then
-      emsg "error: --branch, --fix, and --feat can only be used with --new"
-      exit 1
-    fi
-    if [ -n "$name" ]; then
-      path=$(resolve_workspace_path "$name")
-    else
-      path=$(pick_workspace_path)
-    fi
-  fi
-
-  launch_devtmux "$path"
+  ensure_local_exclude
+  mkdir -p "$workspaces_dir"
+  git worktree add -b "$branch" "$target" "$base" >/dev/null
+  printf '%s\n' "$target"
 }
 
 cmd_new() {
-  local name base branch target branch_kind explicit_branch
+  local name base branch branch_kind explicit_branch no_attach target session
 
-  if [ $# -lt 1 ]; then
-    emsg "error: missing workspace name"
-    usage
-    exit 1
-  fi
-
+  no_attach=0
   name=
   base=
   branch_kind=
@@ -738,6 +743,10 @@ cmd_new() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
+      --no-attach)
+        no_attach=1
+        shift
+        ;;
       --base)
         shift
         if [ $# -eq 0 ]; then
@@ -811,25 +820,17 @@ cmd_new() {
     base=$(default_workspace_base)
   fi
 
-  validate_workspace_name "$name"
   branch=$(resolve_workspace_branch "$name" "$explicit_branch" "$branch_kind")
-  validate_branch_name "$branch"
-  target="$workspaces_dir/$name"
+  target=$(create_worktree "$name" "$base" "$branch")
 
-  if [ -e "$target" ]; then
-    emsg "error: workspace path already exists: $target"
-    exit 1
+  if [ "$no_attach" -eq 1 ]; then
+    printf '%s\n' "$target"
+    return 0
   fi
 
-  if git show-ref --verify --quiet "refs/heads/$branch"; then
-    emsg "error: branch already exists: $branch"
-    exit 1
-  fi
-
-  ensure_local_exclude
-  mkdir -p "$workspaces_dir"
-  git worktree add -b "$branch" "$target" "$base" >/dev/null
-  printf '%s\n' "$target"
+  session=$(session_name_for "$target")
+  ensure_session "$target" "$session"
+  attach_or_switch "$session"
 }
 
 cmd_rename() {
@@ -874,6 +875,7 @@ cmd_rename() {
 
   if command -v tmux >/dev/null 2>&1 && tmux has-session -t "=$old_name" 2>/dev/null; then
     tmux rename-session -t "=$old_name" "$new_name"
+    tmux set-option -t "$new_name" @wks_root "$new_path"
     emsg "renamed tmux session $old_name -> $new_name"
   fi
 
@@ -912,22 +914,39 @@ cmd_rm() {
     esac
   done
 
+  # Default to the current workspace when no name is given.
   if [ -z "$name" ]; then
-    emsg "error: missing workspace name"
-    usage
-    exit 1
+    path=$current_root
+  else
+    path=$(resolve_workspace_path "$name")
   fi
 
-  path=$(resolve_workspace_path "$name")
+  local kind session
+  kind=$(workspace_kind_for "$path")
+  session=$(session_name_for "$path")
 
-  if [ "$path" = "$main_root" ]; then
-    emsg "error: cannot remove main workspace"
-    exit 1
+  # Checkout: only ever kill its tmux session; never touch the worktree.
+  if [ "$kind" = "checkout" ]; then
+    if tmux has-session -t "=$session" 2>/dev/null; then
+      safe_kill_session "$session"
+      emsg "killed session $session (checkout left intact)"
+    else
+      emsg "nothing to delete: checkout has no session"
+    fi
+    return 0
   fi
 
+  # Worktree: enforce the dirty guard unless --force.
   if [ $force -eq 0 ] && [ -n "$(git -C "$path" status --porcelain --ignore-submodules=dirty)" ]; then
     emsg "error: workspace has uncommitted changes (use --force to remove)"
     exit 1
+  fi
+
+  # Kill the worktree's session if it has one. safe_kill_session switches the
+  # client to the most-recently-used other session first when we're attached
+  # to the one being removed.
+  if tmux has-session -t "=$session" 2>/dev/null; then
+    safe_kill_session "$session"
   fi
 
   branch=$(branch_for_path "$path")
@@ -958,16 +977,61 @@ cmd_path() {
   resolve_workspace_path "$name"
 }
 
+workspace_switch_cmd() {
+  local cmd
+
+  cmd=$(command -v workspace-switch 2>/dev/null || true)
+  if [ -z "$cmd" ] && [ -x "$HOME/.config/tmux/scripts/workspace-switch" ]; then
+    cmd=$HOME/.config/tmux/scripts/workspace-switch
+  fi
+
+  printf '%s\n' "$cmd"
+}
+
+# Naked `wks`: attach the current workspace's session. Outside a git repo,
+# fall back to the session picker.
+cmd_default() {
+  local picker
+
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    init_repo_paths
+    cmd_attach_current
+    return 0
+  fi
+
+  picker=$(workspace_switch_cmd)
+  if [ -n "$picker" ]; then
+    exec "$picker"
+  fi
+
+  emsg "error: not inside a workspace and no picker available"
+  exit 1
+}
+
 main() {
   local cmd
 
+  if [ $# -eq 0 ]; then
+    cmd_default
+    return 0
+  fi
+
+  cmd=$1
+  shift
+
+  # These run outside a git repo: adopt operates on tmux sessions; clone
+  # creates the repo before any workspace context exists.
+  if [ "$cmd" = "adopt" ]; then
+    cmd_adopt "$@"
+    return 0
+  fi
+  if [ "$cmd" = "clone" ]; then
+    cmd_clone "$@"
+    return 0
+  fi
+
   require_git_repo
   init_repo_paths
-
-  cmd=${1:-switch}
-  if [ $# -gt 0 ]; then
-    shift
-  fi
 
   case "$cmd" in
     -h|--help|help)
@@ -990,12 +1054,6 @@ main() {
       ;;
     sw|switch)
       cmd_switch "$@"
-      ;;
-     oc)
-      cmd_oc "$@"
-      ;;
-    tmux)
-      cmd_tmux "$@"
       ;;
     rename)
       cmd_rename "$@"
