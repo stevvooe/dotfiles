@@ -4,6 +4,7 @@ Brewfile.lock.json
 .gpg-key-generated
 config/zsh/.zsh_history
 config/zsh/.zshrc.secrets
+config/zsh/.zshrc.local
 config/zsh/.zsh_sessions/
 config/zsh/.zcompdump*
 config/opencode/node_modules

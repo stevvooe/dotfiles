@@ -48,6 +48,11 @@ export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS }--color=bg:#2427
 # include secrets if we have the file around.
 [ -f "${ZDOTDIR}/.zshrc.secrets" ] && source "${ZDOTDIR}/.zshrc.secrets"
 
+# Local, unmanaged interactive overrides. Drop machine-specific or
+# tool-injected interactive config here instead of $HOME/.zshrc (which zsh
+# never sources because ZDOTDIR is set). Gitignored.
+[ -f "${ZDOTDIR}/.zshrc.local" ] && source "${ZDOTDIR}/.zshrc.local"
+
 if command -v go >/dev/null 2>&1; then
   # Ensure private Baseten modules resolve without repeatedly rewriting go env files
   export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/basetenlabs/*."

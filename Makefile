@@ -30,7 +30,21 @@ brew-packages: brew
 stow: brew
 	which stow || brew install stow
 
-link: link-runcoms link-config link-bin link-gnupg
+link: link-runcoms link-config link-bin link-gnupg link-zshrc-local
+
+# $HOME/.zshrc escape hatch.
+#
+# ZDOTDIR is set to ~/.config/zsh, so zsh never sources $HOME/.zshrc. But dumb
+# tools hardcode $HOME/.zshrc and inject machine-specific lines there. We point
+# $HOME/.zshrc at a gitignored local file so those writes (a) take effect via
+# our config, which sources config/zsh/.zshrc.local, and (b) never land in the
+# committed tree. The .local file is created empty if absent.
+link-zshrc-local:
+	touch $(DOTFILES)/config/zsh/.zshrc.local
+	if [ -e $(HOME)/.zshrc -a ! -h $(HOME)/.zshrc ]; then \
+		mv -v $(HOME)/.zshrc $(HOME)/.zshrc.bak; \
+	fi
+	ln -sfn $(DOTFILES)/config/zsh/.zshrc.local $(HOME)/.zshrc
 
 tmux-tpm-update:
 	set -e; \

@@ -522,22 +522,54 @@ case "$key" in
            . "${WKS_DIR_ROOT:-$HOME}" 2>/dev/null
        } | awk 'NF && !seen[$0]++'
      )
-     sel=$(
-       printf '%s\n' "$dirs" \
-         | fzf --print-query --color="$fzf_colors" --prompt='open dir> ' \
-             --height=100% --layout=reverse --border=rounded \
-             --bind 'enter:print-query+accept' \
-             --header='type a path for anything not listed'
-     )
-    # Lines: query (1), selection (2). Prefer the selection; fall back to the
-    # typed query so hidden / unlisted paths work.
-    g_query=$(printf '%s\n' "$sel" | sed -n '1p')
-    g_pick=$(printf '%s\n' "$sel" | sed -n '2p')
-    target_dir=${g_pick:-$g_query}
-    [ -z "$target_dir" ] && exit 0
-    open_dir "$target_dir"
-    exit $?
-    ;;
+      sel=$(
+        printf '%s\n' "$dirs" \
+          | fzf --print-query --color="$fzf_colors" --prompt='open dir> ' \
+              --height=100% --layout=reverse --border=rounded \
+              --bind 'enter:print-query+accept' \
+              --header='type a path for anything not listed'
+      )
+      # fzf output: query is line 1 (--print-query); the accepted selection, if
+      # any, follows. Some fzf versions (e.g. 0.73) emit ONLY the query line for
+      # print-query+accept, so we must NOT rely on a second line existing.
+      g_query=$(printf '%s\n' "$sel" | sed -n '1p')
+      g_pick=$(printf '%s\n' "$sel" | sed -n '2p')
+      [ -z "$g_query" ] && [ -z "$g_pick" ] && exit 0
+
+      # Resolve a target directory robustly:
+      #   1. an explicit selection line wins;
+      #   2. else if the query is itself a real path (abs/~/relative), use it;
+      #   3. else treat the query as a filter and resolve it against the
+      #      candidate list -- exact basename match first, then substring --
+      #      so typing "acc" opens the listed full path even when fzf dropped
+      #      the selection line.
+      target_dir=""
+      if [ -n "$g_pick" ]; then
+        target_dir=$g_pick
+      else
+        expanded=${g_query/#\~/$HOME}
+        if [ -d "$expanded" ]; then
+          target_dir=$g_query
+        else
+          target_dir=$(
+            printf '%s\n' "$dirs" | awk -v q="$g_query" '
+              BEGIN { exact=""; sub_="" }
+              {
+                n=$0; b=n; sub(/\/$/,"",b); sub(/.*\//,"",b)
+                if (b==q && exact=="") exact=$0
+                else if (index(n,q) && sub_=="") sub_=$0
+              }
+              END { print (exact!="" ? exact : sub_) }
+            '
+          )
+          [ -z "$target_dir" ] && target_dir=$g_query
+        fi
+      fi
+
+      [ -z "$target_dir" ] && exit 0
+      open_dir "$target_dir"
+      exit $?
+     ;;
   ctrl-z)
     # Make a live workspace dormant: kill its session, keep the worktree.
     # Only meaningful for live rows (dormant rows have no session).

@@ -1008,21 +1008,10 @@ cmd_path() {
   resolve_workspace_path "$name"
 }
 
-workspace_switch_cmd() {
-  local cmd
-
-  cmd=$(command -v workspace-switch 2>/dev/null || true)
-  if [ -z "$cmd" ] && [ -x "$HOME/.config/tmux/scripts/workspace-switch" ]; then
-    cmd=$HOME/.config/tmux/scripts/workspace-switch
-  fi
-
-  printf '%s\n' "$cmd"
-}
-
 # Naked `wks`: attach the current workspace's session. Outside a git repo,
-# fall back to the session picker.
+# attach the only known workspace, or pick one interactively.
 cmd_default() {
-  local picker
+  local path
 
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     init_repo_paths
@@ -1030,13 +1019,21 @@ cmd_default() {
     return 0
   fi
 
-  picker=$(workspace_switch_cmd)
-  if [ -n "$picker" ]; then
-    exec "$picker"
+  # Non-git, but already inside an opened workspace session: a plain dir opened
+  # via the picker's "open dir" flow stamps @wks_root on its session. In that
+  # case we are already where we want to be -- do NOT relaunch the picker (that
+  # recursion churns/tears down the session). Just stay put.
+  if [ -n "${TMUX:-}" ]; then
+    local cur_session cur_root
+    cur_session=$(tmux display-message -p '#S' 2>/dev/null || true)
+    cur_root=$(tmux show-options -t "$cur_session" -qv @wks_root 2>/dev/null || true)
+    if [ -n "$cur_root" ]; then
+      return 0
+    fi
   fi
 
-  emsg "error: not inside a workspace and no picker available"
-  exit 1
+  path=$(pick_global_workspace_path) || exit $?
+  open_path "$path"
 }
 
 # --- global (cross-repo) workspace inventory ---------------------------------
@@ -1141,6 +1138,36 @@ resolve_global_workspace() {
   emsg "error: '$query' is ambiguous; matches:"
   printf '%s\n' "$match" | sed 's/^/  /' >&2
   return 1
+}
+
+# Pick a known workspace outside repo context. If exactly one workspace is known,
+# open it directly; otherwise use fzf over the machine-wide inventory.
+pick_global_workspace_path() {
+  local rows count selected
+
+  rows=$(global_workspace_rows)
+  count=$(printf '%s\n' "$rows" | grep -c . || true)
+
+  if [ "$count" -eq 0 ]; then
+    emsg "error: no known workspaces under $(wks_code_root)"
+    return 1
+  fi
+
+  if [ "$count" -eq 1 ]; then
+    printf '%s\n' "$rows" | awk -F'\t' '{print $4}'
+    return 0
+  fi
+
+  if ! command -v fzf >/dev/null 2>&1; then
+    emsg "error: fzf is required to pick from multiple workspaces"
+    return 1
+  fi
+
+  selected=$(printf '%s\n' "$rows" \
+    | fzf --prompt='workspace> ' --height=50% --layout=reverse --delimiter=$'\t' --with-nth=1,2,3,4)
+  [ -n "$selected" ] || return 1
+
+  printf '%s\n' "$selected" | awk -F'\t' '{print $4}'
 }
 
 # wks up <name|path>: start-or-attach the session for a known workspace.
