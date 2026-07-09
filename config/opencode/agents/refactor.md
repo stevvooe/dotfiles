@@ -10,11 +10,6 @@ permission:
     "cargo clippy*": allow
     "go test*": allow
     "golangci-lint*": allow
-    "rtk cargo test*": allow
-    "rtk cargo clippy*": allow
-    "rtk go test*": allow
-    "rtk proxy go test*": allow
-    "rtk golangci-lint*": allow
     "grep *": allow
     "rg *": allow
 ---
@@ -32,8 +27,6 @@ Process:
 4. Repeat until done
 
 Before running repo-level test, lint, build, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
-
-If `rtk` filtered output hides needed failure details, rerun the exact original test command once with `rtk proxy`, such as `rtk proxy go test ./...`. Do not rerun the same filtered command repeatedly.
 
 Focus on:
 - Collapsing redundant types or abstractions that don't earn their keep

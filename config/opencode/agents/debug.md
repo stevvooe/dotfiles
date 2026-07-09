@@ -12,19 +12,11 @@ permission:
     "git log*": allow
     "git show*": allow
     "git blame*": allow
-    "rtk git diff*": allow
-    "rtk git log*": allow
-    "rtk git show*": allow
-    "rtk git blame*": allow
     "grep *": allow
     "rg *": allow
     "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
-    "rtk cargo clippy*": allow
-    "rtk cargo test*": allow
-    "rtk go test*": allow
-    "rtk proxy go test*": allow
 ---
 
 You are a debugger. Find the root cause, not the symptom. Follow the conventions in the project's AGENTS.md file.
@@ -42,8 +34,6 @@ Process:
 Before running repo-level test, build, lint, or benchmark commands, check whether the repo uses a task runner such as `moon` and prefer it when the workflow is exposed there.
 
 Do not guess. If you need more information, ask for it. If you need to run a command to inspect state, do so.
-
-When `rtk` filtered output hides details required to debug a failing command, rerun the exact original command once with `rtk proxy`, such as `rtk proxy go test ./...`. Do not rerun the same filtered command repeatedly.
 
 When reporting findings, include:
 - The root cause with exact code location

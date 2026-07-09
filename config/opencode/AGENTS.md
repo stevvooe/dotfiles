@@ -78,7 +78,6 @@ Use subagents proactively when their specialty materially improves the result.
 - Load `distributed-systems` for distributed-systems design and debugging.
 - Load `cloud-instance-shapes` for cloud instance comparisons.
 - Load `github-actions-ci-debug` for broken GitHub Actions.
-- Load `rtk` for token-savings plugin behavior or output-compression debugging.
 - Load `human-docs` for human-facing markdown.
 - Load `agent-docs` for AGENTS files, skills, `.ai/` plans, and prompt-like docs.
 

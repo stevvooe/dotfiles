@@ -9,9 +9,6 @@ permission:
     "cargo clippy*": allow
     "cargo test*": allow
     "go test*": allow
-    "rtk cargo clippy*": allow
-    "rtk cargo test*": allow
-    "rtk go test*": allow
     "grep *": allow
     "rg *": allow
 ---
