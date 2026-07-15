@@ -983,7 +983,7 @@ cmd_rm() {
   branch=$(branch_for_path "$path")
 
   if [ $force -eq 1 ]; then
-    git worktree remove --force "$path"
+    git worktree remove --force --force "$path"
   else
     git worktree remove "$path"
   fi

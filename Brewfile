@@ -69,6 +69,7 @@ cask "1password-cli"
 cask "aws-vault-binary"
 cask "gcloud-cli"
 cask "ghostty"
+cask "supacode"
 
 tap "anomalyco/tap"
 tap "fluxcd/tap"

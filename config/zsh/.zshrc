@@ -54,8 +54,11 @@ export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS }--color=bg:#2427
 [ -f "${ZDOTDIR}/.zshrc.local" ] && source "${ZDOTDIR}/.zshrc.local"
 
 if command -v go >/dev/null 2>&1; then
-  # Ensure private Baseten modules resolve without repeatedly rewriting go env files
-  export GOPRIVATE="${GOPRIVATE:+$GOPRIVATE,}github.com/basetenlabs/*."
+  # Ensure private Baseten modules resolve without repeatedly rewriting go env
+  # files. A prefix pattern (no glob needed) covers every repo in the org. Set
+  # rather than append: this env var overrides `go env` entirely, and appending
+  # duplicates the entry when nested shells re-source zshrc.
+  export GOPRIVATE="github.com/basetenlabs"
 fi
 # Cache Docker completion locally and load it via fpath.
 docker_completion_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions"

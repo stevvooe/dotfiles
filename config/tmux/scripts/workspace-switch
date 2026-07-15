@@ -594,8 +594,9 @@ case "$key" in
       printf 'Delete/kill %s? [y/N] ' "$session_target" >&2
       read -r confirm </dev/tty || exit 0
       [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || exit 0
-      if [ -n "$wks_cmd" ] && [ -n "$sroot" ] && ( cd "$sroot" 2>/dev/null && "$wks_cmd" rm ) 2>/dev/null; then
-        exit 0
+      if [ -n "$wks_cmd" ] && [ -n "$sroot" ] && git -C "$sroot" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        ( cd "$sroot" && exec "$wks_cmd" rm )
+        exit $?
       fi
       safe_kill_session "$session_target"
     fi
