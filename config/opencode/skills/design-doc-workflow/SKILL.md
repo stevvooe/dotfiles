@@ -26,7 +26,7 @@ description: Keep DESIGN.md and plan docs synchronized with implementation decis
 
 4. **Build**
    - If implementation diverges from design, update the artifact first.
-   - Record meaningful decisions in the plan, design doc, or memorix.
+   - Record meaningful decisions in the plan or design doc.
    - Keep related design artifacts synchronized when decisions overlap.
 
 5. **Verify**
@@ -43,7 +43,7 @@ description: Keep DESIGN.md and plan docs synchronized with implementation decis
 
 - Active design artifact is identified.
 - Goals are explicit and stable unless scope changed intentionally.
-- Meaningful decisions are captured in the artifact or memorix.
+- Meaningful decisions are captured in the artifact.
 - Implementation and docs are aligned at task completion.
 - Follow-up work is captured in `TODO.md`.
 

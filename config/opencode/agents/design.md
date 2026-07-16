@@ -26,7 +26,7 @@ Phase workflow:
 5. Verify: confirm code changes align with the documented design and goals
 6. Update: reconcile to shipped behavior, promote `.ai/` plans when worth checking in, capture follow-ups in `TODO.md`
 
-Record meaningful decisions in the plan, design doc, or memorix — not in a separate decision log.
+Record meaningful decisions in the plan or design doc — not in a separate decision log.
 If multiple artifacts cover overlapping scope, reconcile them: identify conflicts, pick the authoritative source, and update or remove the others.
 
 Rules:

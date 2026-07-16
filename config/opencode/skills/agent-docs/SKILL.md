@@ -46,7 +46,7 @@ description: Write documentation consumed by LLM agents — AGENTS.md, skill fil
 - **Decisions** — Bullet list. What was decided and why (brief).
 - **Status** — What's done, what's in progress, what's blocked.
 - **Open questions** — Bullet list. What needs resolving before continuing.
-- Plans are working documents. Update them as decisions are made. Don't preserve history in the plan — that's what git and memorix are for.
+- Plans are working documents. Update them as decisions are made. Don't preserve history in the plan — that's what git is for.
 
 ### Agent instructions / system prompts
 

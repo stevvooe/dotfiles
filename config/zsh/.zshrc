@@ -196,19 +196,6 @@ alias kn="kubens"
 # zoxide
 eval "$(zoxide init zsh)"
 
-opencode() {
-  local opencode_cmd project_root
-
-  opencode_cmd="$(whence -p opencode 2>/dev/null || true)"
-  if [[ -z "$opencode_cmd" ]]; then
-    print -u2 "opencode: command not found"
-    return 127
-  fi
-
-  project_root="${MEMORIX_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-  MEMORIX_PROJECT_ROOT="$project_root" "$opencode_cmd" "$@"
-}
-
 # hdi - "how do I" inline AI shell helper
 # Sends a question (with recent shell history for context) to opencode's
 # shell-helper agent and offers to load the suggested command into the prompt.

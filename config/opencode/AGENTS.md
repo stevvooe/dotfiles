@@ -25,7 +25,7 @@
 - Before coding, search for existing design artifacts: `DESIGN.md`, `*_PLAN.md`, `docs/design/`, `.ai/`, and nearby markdown plans/specs.
 - If multiple artifacts overlap, pick the active one, reconcile conflicts, and keep it current with implementation.
 - If implementation changes direction, update the design artifact before continuing.
-- Record meaningful decisions in the plan, design doc, or Memorix, not in a separate decision log.
+- Record meaningful decisions in the plan or design doc, not in a separate decision log.
 - When completing a `TODO.md` item, check it off.
 - Use `/todo`, `/commit-message`, `/pr-create`, and `/design-sync` when they fit.
 - Treat `gh pr create` and other GitHub write actions as permission-gated: draft/propose is fine; executing requires explicit user permission in that turn.
@@ -73,7 +73,7 @@ Use subagents proactively when their specialty materially improves the result.
 
 ## Skills
 
-- Load `memorix-proactive` for non-trivial tasks.
+- Load `session-history` to recall prior work from local session stores (opencode SQLite + Claude Code JSONL).
 - Load `stephen-context` for systems-level and preference-sensitive recommendations.
 - Load `distributed-systems` for distributed-systems design and debugging.
 - Load `cloud-instance-shapes` for cloud instance comparisons.
@@ -116,9 +116,9 @@ Use subagents proactively when their specialty materially improves the result.
 - Keep `unsafe` small, documented with `// SAFETY:`, and well-tested.
 - Test public APIs, not internals.
 
-## Memorix
+## Session history
 
-- Memorix mode is proactive by default.
-- Load and follow the `memorix-proactive` skill.
-- On session start, call `memorix_session_start`, then search for relevant context.
-- Use `topicKey` for evolving topics and resolve completed memories.
+- Prefer local session stores over external memory services for recalling prior work.
+- Load `session-history` at session start or when prior context is needed.
+- Use it to find recent sessions, summarize past decisions, and ground recommendations in what was actually done — not separate durable memory.
+- Capture durable context as markdown (design docs, `AGENTS.md`, skills) rather than in a side memory store.
